@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% load static %}{% block content %}
+<a href="/groups/{{ group.id }}">&larr; Back to {{ group.name }}</a>
+<h1>Review a receipt</h1>
+<section class="card"><h2>Read the image</h2><p>Upload a JPEG, PNG or WebP (up to 8 MiB and 20 megapixels). Images are processed in memory and never stored.</p>
+<form id="receipt-upload" data-group="{{ group.id }}">{% csrf_token %}<p><label for="image">Receipt image</label><input id="image" type="file" accept="image/jpeg,image/png,image/webp" required></p><button>Extract receipt</button></form>
+<p id="receipt-status" role="status" aria-live="polite"></p></section>
+<section class="card"><h2>Correct and assign</h2><p>Check every line and the total against your receipt. Add missing lines and remove incorrect ones. Charges and discounts are shared equally among people with items; spare paise go in user ID order. Nothing is saved until you approve.</p>
+<form id="receipt-review">{% csrf_token %}
+<p><label for="description">Description</label><input id="description" maxlength="200" required></p>
+<p><label for="expense-date">Expense date</label><input id="expense-date" type="date" required></p>
+<p><label for="receipt-total">Receipt total (INR)</label><input id="receipt-total" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" required></p>
+<p><label for="receipt-mode">Split</label><select id="receipt-mode"><option value="itemised">By item</option><option value="equal">Whole bill equally</option></select></p>
+<fieldset><legend>Participants</legend><div id="receipt-participants"></div></fieldset>
+<p>For each item, choose its payees or leave blank to share among all selected participants. Enter a line's full price (including quantity). Discount amounts must be negative.</p>
+<div id="receipt-lines"></div><p><button id="receipt-add" type="button" class="secondary">Add line</button></p>
+<p id="receipt-sum" role="status"></p><button id="receipt-approve">Approve and save expense</button>
+<p id="receipt-error" role="alert"></p></form>
+<details id="receipt-extraction"><summary>Extracted text</summary><pre id="receipt-text" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></details></section>
+{{ initial|json_script:"receipt-initial" }}{{ members|json_script:"receipt-members" }}
+<script src="{% static 'js/receipts.js' %}" defer></script>{% endblock %}

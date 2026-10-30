@@ -31,8 +31,8 @@ class Expense(models.Model):
     expense_date = models.DateField(default=timezone.localdate)
     category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.PROTECT, related_name="expenses")
     tag = models.CharField(max_length=40, null=True, blank=True)
-    split_mode = models.CharField(max_length=10, default="equal", choices=[("equal", "Equal"), ("unequal", "Unequal")])
-    source = models.CharField(max_length=10, default="manual", choices=[("manual", "Manual")])
+    split_mode = models.CharField(max_length=10, default="equal", choices=[("equal", "Equal"), ("unequal", "Unequal"), ("itemised", "Itemised")])
+    source = models.CharField(max_length=10, default="manual", choices=[("manual", "Manual"), ("ocr", "Receipt")])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -43,8 +43,8 @@ class Expense(models.Model):
         db_table = "expenses"
         constraints = [
             models.CheckConstraint(condition=models.Q(amount_paise__gt=0), name="expense_amount_positive"),
-            models.CheckConstraint(condition=models.Q(split_mode__in=["equal", "unequal"]), name="expense_split_mode_valid"),
-            models.CheckConstraint(condition=models.Q(source="manual"), name="phase1_manual_only"),
+            models.CheckConstraint(condition=models.Q(split_mode__in=["equal", "unequal", "itemised"]), name="expense_split_mode_valid"),
+            models.CheckConstraint(condition=models.Q(source__in=["manual", "ocr"]), name="expense_source_valid"),
         ]
         indexes = [models.Index(fields=["group", "-expense_date"], condition=models.Q(deleted_at__isnull=True), name="active_expense_date_idx"), models.Index(fields=["group", "category"], name="expense_category_idx")]
 
@@ -60,3 +60,29 @@ class ExpenseSplit(models.Model):
             models.UniqueConstraint(fields=["expense", "user"], name="expense_split_user_unique"),
             models.CheckConstraint(condition=models.Q(share_paise__gt=0), name="expense_share_positive"),
         ]
+
+
+class ExpenseItem(models.Model):
+    expense = models.ForeignKey(Expense, on_delete=models.PROTECT, related_name="items")
+    kind = models.CharField(max_length=10)
+    name = models.CharField(max_length=120)
+    price_paise = models.BigIntegerField()
+    position = models.PositiveSmallIntegerField()
+
+    class Meta:
+        db_table = "expense_items"
+        ordering = ["position", "id"]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(kind__in=["item", "tax", "service", "tip", "discount"]), name="expense_item_kind_valid"),
+            models.CheckConstraint(condition=(models.Q(kind="discount", price_paise__lt=0) | (~models.Q(kind="discount") & models.Q(price_paise__gt=0))), name="expense_item_price_valid"),
+            models.UniqueConstraint(fields=["expense", "position"], name="expense_item_position_unique"),
+        ]
+
+
+class ExpenseItemPayee(models.Model):
+    item = models.ForeignKey(ExpenseItem, on_delete=models.CASCADE, related_name="payees")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+
+    class Meta:
+        db_table = "expense_item_payees"
+        constraints = [models.UniqueConstraint(fields=["item", "user"], name="expense_item_payee_unique")]

@@ -201,3 +201,29 @@ All mutations require CSRF. Generate links from the canonical reachable host.
 Member additions also accept `{"username":"exact_username"}` case-insensitively.
 Known `user_id` values remain supported by the API. Neither UI enumerates platform
 accounts; group member lists require active membership.
+
+
+## Phase 5 receipt entry
+
+`GET /groups/{id}/receipts` opens the upload and correction screen. Creator edits
+use `?expense={expense_id}`. `POST /groups/{id}/receipts/parse` accepts multipart
+`image` (JPEG/PNG/WebP, up to 8 MiB / 20 megapixels), requires membership and CSRF,
+and returns `{items, amount, warnings, text}` without any database writes. OCR
+failure returns a generic validation error. Drafts and images are never persisted.
+
+Approval uses JSON `POST /expenses` with the normal fields plus `source: "ocr"`,
+`split_mode: "equal"` or `"itemised"`, and `items`. Each item has `kind` (`item`,
+`tax`, `service`, `tip`, `discount`), `name`, exact rupee `amount`, and optional
+`payees` (unique selected participant IDs; item lines only). Discounts must be
+negative; other lines positive. One to 100 lines are accepted. At least one item
+is required, and all lines must sum to the expense amount. The caller must be the
+payer. Participants default to all active group members. Itemised shares divide
+items equally among their payees, defaulting to all participants. Combined charges
+and discounts are divided equally among item recipients. Remainders go to ascending
+user IDs; every final share must be positive. Explicit `splits` are rejected for OCR.
+
+`GET /expenses/{id}` includes `source` and `items`. `PATCH /expenses/{id}` can
+correct receipt items, amount, participants and mode; omitted items and source
+are preserved, and changing an OCR expense to manual is rejected. Receipt edits,
+items, split replacement, balances and audit snapshots commit atomically. Existing
+creator-only edit/delete and membership checks apply. Soft deletion retains items.

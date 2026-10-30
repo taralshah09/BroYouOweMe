@@ -12,6 +12,7 @@ from apps.groups.models import Membership
 from apps.groups.services import require_member
 from .money import allocate_equal, rupees_to_paise
 from ..models import Category, Expense, ExpenseSplit
+from .receipts import item_data, prepare_items, save_items
 
 
 def money(amount):
@@ -31,6 +32,7 @@ def snapshot(expense):
         "paid_by": expense.paid_by_id, "amount_paise": expense.amount_paise,
         "description": expense.description, "expense_date": expense.expense_date.isoformat(),
         "split_mode": expense.split_mode, "category": expense.category_id, "tag": expense.tag,
+        "source": expense.source, "items": item_data(expense),
         "splits": [{"user_id": pk, "share_paise": share} for pk, share in equal_shares(expense).items()],
         "deleted_at": expense.deleted_at.isoformat() if expense.deleted_at else None,
     }
@@ -45,7 +47,8 @@ def apply_expense(expense, direction=1):
 
 
 def prepare(expense, *, paid_by=None, amount=None, description=None, expense_date=None,
-            participants=None, splits=None, split_mode=None, category=None, tag=None):
+            participants=None, splits=None, split_mode=None, category=None, tag=None,
+            source="manual", items=None):
     members = set(Membership.objects.filter(group_id=expense.group_id, left_at__isnull=True).values_list("user_id", flat=True))
     if type(paid_by) is not int or paid_by not in members:
         raise ValidationError("The payer must be an active group member.")
@@ -53,12 +56,25 @@ def prepare(expense, *, paid_by=None, amount=None, description=None, expense_dat
     if amount_paise <= 0:
         raise ValidationError("Amount must be greater than zero.")
     mode = split_mode if split_mode is not None else ("unequal" if splits is not None else "equal")
-    if not isinstance(mode, str) or mode not in {"equal", "unequal"}:
-        raise ValidationError("Split mode must be equal or unequal.")
+    if not isinstance(mode, str) or mode not in {"equal", "unequal", "itemised"}:
+        raise ValidationError("Split mode must be equal, unequal or itemised.")
+    if not isinstance(source, str) or source not in {"manual", "ocr"}:
+        raise ValidationError("Choose a supported expense source.")
+    if source == "ocr" and paid_by != expense.created_by_id:
+        raise ValidationError("The receipt uploader must be the payer.")
+    if source == "ocr" and (items is None or mode == "unequal"):
+        raise ValidationError("Receipts require items and equal or itemised splits.")
+    if source == "manual" and (items is not None or mode == "itemised"):
+        raise ValidationError("Receipt items require source ocr.")
     if participants is not None:
         if not isinstance(participants, list) or not participants or any(type(pk) is not int for pk in participants) or len(set(participants)) != len(participants) or not set(participants) <= members:
             raise ValidationError("Participants must be unique active group member IDs.")
-    if mode == "unequal":
+    expense._receipt_rows = None
+    if source == "ocr":
+        if splits is not None:
+            raise ValidationError("Receipt shares are computed from the reviewed items.")
+        expense._receipt_rows, shares = prepare_items(items, participants if participants is not None else sorted(members), amount_paise, mode)
+    elif mode == "unequal":
         if not isinstance(splits, list) or not splits:
             raise ValidationError("Unequal splits require a list of user_id and amount objects.")
         shares = {}
@@ -97,6 +113,7 @@ def prepare(expense, *, paid_by=None, amount=None, description=None, expense_dat
     expense.description = description.strip() if isinstance(description, str) else ""
     expense.expense_date = expense_date or timezone.localdate()
     expense.split_mode = mode
+    expense.source = source
     expense.category_id = category
     expense.tag = tag.strip() or None if tag is not None else None
     expense.full_clean()
@@ -114,6 +131,8 @@ def create_expense(*, actor, group_id, **values):
     shares = prepare(expense, **values)
     expense.save()
     save_splits(expense, shares)
+    if expense._receipt_rows is not None:
+        save_items(expense, expense._receipt_rows)
     apply_expense(expense)
     record(group_id=group.id, actor=actor, action="expense.created", entity=expense, after=snapshot(expense))
     return expense
@@ -141,14 +160,19 @@ def update_expense(*, actor, expense_id, **changes):
     values = dict(paid_by=expense.paid_by_id,
                   amount=f"{expense.amount_paise // 100}.{expense.amount_paise % 100:02d}",
                   description=expense.description, expense_date=expense.expense_date,
-                  category=expense.category_id, tag=expense.tag, split_mode=expense.split_mode)
+                  category=expense.category_id, tag=expense.tag, split_mode=expense.split_mode,
+                  source=expense.source)
+    if expense.source == "ocr":
+        if "source" in changes and changes["source"] != "ocr":
+            raise ValidationError("A receipt expense must retain its receipt items.")
+        values["items"] = item_data(expense)
     if not ({"participants", "splits", "split_mode"} & changes.keys()):
-        if expense.split_mode == "equal":
+        if expense.split_mode in {"equal", "itemised"}:
             values["participants"] = list(equal_shares(expense))
         else:
             values["splits"] = [{"user_id": pk, "amount": f"{share // 100}.{share % 100:02d}"} for pk, share in equal_shares(expense).items()]
     elif "split_mode" not in changes:
-        values["split_mode"] = "unequal" if "splits" in changes else "equal"
+        values["split_mode"] = expense.split_mode if expense.source == "ocr" else ("unequal" if "splits" in changes else "equal")
     values.update(changes)
     # Reverse the saved allocation before replacing its rows. All writes roll back on failure.
     apply_expense(expense, -1)
@@ -156,6 +180,8 @@ def update_expense(*, actor, expense_id, **changes):
     expense.save()
     expense.splits.all().delete()
     save_splits(expense, shares)
+    if expense._receipt_rows is not None:
+        save_items(expense, expense._receipt_rows)
     apply_expense(expense)
     record(group_id=expense.group_id, actor=actor, action="expense.updated", entity=expense, before=before, after=snapshot(expense))
     return expense

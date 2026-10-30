@@ -5,9 +5,12 @@ from apps.expenses import views as expenses
 from apps.groups import views as groups
 from apps.settlements import views as settlements
 from apps.activity.views import activity
+from apps.ai import views as ai
 from apps.settlements.views import balances
 
 urlpatterns = [
+    path("groups/<int:group_id>/receipts", ai.receipt_review, name="receipt-review"),
+    path("groups/<int:group_id>/receipts/parse", ai.receipt_parse, name="receipt-parse"),
     path("", accounts.home, name="home"),
     path("health", accounts.health, name="health"),
     path("signup", accounts.signup, name="signup"),

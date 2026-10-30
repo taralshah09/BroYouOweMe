@@ -102,7 +102,11 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 # Uploads must never spill to Django's temporary-file upload handler.
-FILE_UPLOAD_HANDLERS = ["django.core.files.uploadhandler.MemoryFileUploadHandler"]
+FILE_UPLOAD_HANDLERS = ["apps.ai.uploads.ReceiptMemoryUploadHandler"]
+FILE_UPLOAD_MAX_MEMORY_SIZE = 8 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+RECEIPT_MAX_BYTES = 8 * 1024 * 1024
+RECEIPT_MAX_PIXELS = 20_000_000
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG

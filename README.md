@@ -1,7 +1,7 @@
 # BroYouOweMe
 
 An INR expense-sharing service built with Django server-rendered templates,
-plain CSS/JavaScript, and PostgreSQL on Neon. Phases 1?4 include private session auth, invite links/QR codes, minimum-transfer suggestions, groups, equal/subset/unequal expenses, creator-only
+plain CSS/JavaScript, and PostgreSQL on Neon. Phases 1–5 include receipt OCR with review, private session auth, invite links/QR codes, minimum-transfer suggestions, groups, equal/subset/unequal expenses, creator-only
 edits and soft deletion, confirmed settlements, categories, and an activity feed.
 
 ## Local setup
@@ -86,13 +86,12 @@ Use `DB_CONN_MAX_AGE=0` when running ASGI.
 For deployment, set explicit allowed hosts and trusted HTTPS origins, keep
 debug disabled, and configure HTTPS at the host. HTTPS redirect defaults on;
 the minimal health endpoint is exempt so container HTTP probes work.
-Uploaded files use only the in-memory upload handler; OCR and voice processing
-and their input limits will be added in their planned phases.
+Receipt uploads use a bounded in-memory upload handler. OCR has byte, pixel and
+execution-time limits; voice processing arrives in its planned phase.
 
 The schema and later work are documented in [docs/SCHEMA.md](docs/SCHEMA.md)
 and [docs/PLAN.md](docs/PLAN.md). Money is stored as integer paise, all domain
-IDs are bigint, and timestamps use UTC. OCR, voice, insights, and production deployment remain
-future work.
+IDs are bigint, and timestamps use UTC. Voice, insights, and production deployment remain future work.
 
 Configuration references: [Django PostgreSQL documentation](https://docs.djangoproject.com/en/5.2/ref/databases/),
 [custom user migration guidance](https://docs.djangoproject.com/en/5.2/topics/auth/customizing/#changing-to-a-custom-user-model-mid-project),
@@ -202,3 +201,37 @@ passwords, so cannot log in. Add these exact usernames to a group you own to try
 Use a separate normal account to test login. The seed is atomic and repeatable,
 never overwrites identities or passwords, and aborts on collisions. Sample ledger
 writes go through normal services.
+
+
+## Phase 5: Receipt OCR
+
+Choose **Scan a receipt** on a group page. Upload JPEG, PNG or WebP, then correct
+all extracted lines and the total, select participants, and assign item payees.
+Use whole-bill equal splitting or itemised splitting. An unassigned item belongs
+to all selected participants. Tax, service, tip and discounts are divided equally
+among people with items, as confirmed by the owner. Discount lines are negative.
+The uploader is always the payer. Lines must sum exactly to the reviewed total;
+nonpositive final shares are rejected. Approve explicitly to save the expense.
+
+Images and drafts are never stored. Pillow checks the decoded format, applies
+EXIF orientation, grayscale and contrast preprocessing, then sends PNG bytes to
+Tesseract through stdin; text returns through stdout without temporary images.
+Limits: 8 MiB per upload, 20 megapixels, 25 seconds of OCR, and 100 reviewed lines.
+The extractor recognizes lines ending in whole-rupee or one/two-decimal prices,
+including currency labels before or after the amount; other layouts may
+need corrections. Quantity/rate/total tables use the final line total, with common
+border artifacts and item numbering removed. Other layouts may
+need manual corrections. It does not infer missing prices, quantities or rounding
+adjustments. Add or correct these lines before approval. The review page also
+supports manual entry if recognition is unavailable.
+
+Docker includes Tesseract. For native Windows development, install Tesseract with
+English language data and add it to PATH. Install updated Python requirements and
+run `python manage.py migrate` before running this version. Receipt edits use the
+same review screen and preserve item history in activity snapshots; deletion
+reverses balances while retaining the receipt rows. `check_balances` also verifies
+receipt totals and allocations. Source constraints currently allow manual and OCR
+expenses; voice is not enabled.
+
+Implementation references: [Tesseract command line](https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html)
+and [Pillow image handling](https://pillow.readthedocs.io/en/stable/reference/Image.html).

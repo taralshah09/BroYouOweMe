@@ -10,9 +10,10 @@ from apps.settlements.services import rupee_value
 from .forms import ExpenseForm
 from .models import Category, Expense
 from .services import create_expense, delete_expense, equal_shares, manage_category, update_expense
+from .services.receipts import item_data
 
 
-EXPENSE_FIELDS = ["paid_by", "amount", "description", "expense_date", "participants", "splits", "split_mode", "category", "tag"]
+EXPENSE_FIELDS = ["paid_by", "amount", "description", "expense_date", "participants", "splits", "split_mode", "category", "tag", "source", "items"]
 
 
 def expense_data(expense):
@@ -22,6 +23,7 @@ def expense_data(expense):
         "paid_by": expense.paid_by.username, "paid_by_id": expense.paid_by_id,
         "expense_date": expense.expense_date.isoformat(), "split_mode": expense.split_mode,
         "category": expense.category_id, "tag": expense.tag,
+        "source": expense.source,
     }
 
 
@@ -86,6 +88,7 @@ def expense_detail(request, expense_id):
         if wants_html(request):
             return redirect("expense-detail", expense_id=expense.id)
     data = expense_data(expense)
+    data["items"] = item_data(expense)
     data["splits"] = [{"user_id": row.user_id, "username": row.user.username, "amount": rupee_value(row.share_paise)} for row in expense.splits.select_related("user").order_by("user_id")]
     if wants_html(request):
         initial = dict(data, paid_by=expense.paid_by_id, participants=list(equal_shares(expense)))

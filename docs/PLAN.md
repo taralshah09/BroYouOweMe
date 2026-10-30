@@ -1,6 +1,6 @@
 # BroYouOweMe: Feature Definition and Phase Plan
 
-Status: Phases 0 through 4 implemented and validated.
+Status: Phases 0 through 4 validated. Phase 5 implemented; browser visual QA and a real receipt-photo trial remain pending.
 Source: `Assignment.pdf` (Decentro SDE Intern, Expense Sharing Service) plus extra requirements.
 
 ## Locked decisions
@@ -68,7 +68,7 @@ Source: `Assignment.pdf` (Decentro SDE Intern, Expense Sharing Service) plus ext
 11. Docker setup
 
 ### Your additions
-12. Receipt image upload with OCR; items logged as expenses, with per-item assignment to members and proportional tax/tip
+12. Receipt image upload with OCR; items logged as expenses, with per-item assignment and equal charges among people with items
 13. Voice logging with an explicit approval screen before anything is saved
 14. Invite via link or QR (non-users sign up first, then auto-join)
 
@@ -185,9 +185,28 @@ Implemented on 2026-10-30 (phases 3 and 4):
 ### Phase 5: Receipt OCR
 - Image upload, preprocessing, Tesseract extraction of items, tax, total
 - Review/correct screen (required, because Tesseract is imperfect)
-- Per-item assignment to members, tax/tip split proportionally
+- Per-item assignment to members; tax, service, tip and discounts split equally among people with items (owner confirmed on 2026-10-30)
 - Creates an expense with per-user splits
 - Exit: a real receipt photo becomes a correct expense after review.
+
+Implemented on 2026-10-30:
+- Bounded in-memory JPEG/PNG/WebP upload, orientation/grayscale/contrast preprocessing,
+  Tesseract stdin/stdout extraction with timeout, and stateless editable drafts.
+- Required explicit approval; equal-bill and itemised splits, shared/unassigned items,
+  equal charges among item recipients, deterministic paise rounding and negative discounts.
+- Receipt item/payee models, atomic saves/edits/deletion, audit snapshots and extended
+  receipt/ledger integrity checks. The uploader is always the receipt payer.
+- 91 tests pass in Docker, including actual Tesseract on an in-memory generated receipt;
+  local suite passes with the binary-dependent test skipped. Checks and migration
+  consistency pass. No real receipt photo was supplied; that exit trial remains pending.
+- Browser automation host was unavailable, so desktop/mobile visual QA remains pending.
+- Receipt migration applied to the configured Neon database; balance integrity passes.
+  Local Docker app rebuilt and restarted; `/health` returns 200 and container is healthy.
+- Receipt-parser follow-up: accept whole-rupee prices and currency suffixes, exclude
+  common receipt metadata, and show explicit empty-extraction/total-mismatch warnings.
+  The user's pasted OCR text is now covered by a regression test: noisy quantity/rate/
+  total columns and border artifacts produce three items totalling INR 290.00.
+  The original image attachment was unavailable, so image-level verification remains pending.
 
 ### Phase 6: Voice logging
 - Browser mic recording, upload, Sarvam transcription

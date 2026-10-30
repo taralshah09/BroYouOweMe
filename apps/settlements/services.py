@@ -131,6 +131,15 @@ def balance_mismatches(group_id=None):
         expected = defaultdict(int)
         for expense in Expense.objects.filter(group=group):
             shares = equal_shares(expense)
+            if expense.source == "ocr":
+                from apps.expenses.services.receipts import item_data, prepare_items
+                from django.core.exceptions import ValidationError
+                try:
+                    _, receipt_shares = prepare_items(item_data(expense), list(shares), expense.amount_paise, expense.split_mode)
+                    if receipt_shares != shares:
+                        raise ValidationError("Receipt allocations differ from splits.")
+                except ValidationError:
+                    mismatches.append({"group_id": group.id, "expense_id": expense.id, "error": "Invalid receipt items or shares."})
             if sum(shares.values()) != expense.amount_paise or any(share <= 0 for share in shares.values()):
                 mismatches.append({"group_id": group.id, "expense_id": expense.id, "error": "Invalid split total or shares."})
             for user_id, share in shares.items():

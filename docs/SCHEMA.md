@@ -1,15 +1,16 @@
 # BroYouOweMe: Database Schema and API Design
 
-Status: Phases 1?4 ledger and invite schema implemented; later-phase tables remain planned. Built from the decisions in `PLAN.md`.
+Status: Phases 1–5 ledger, invite and receipt schema implemented. Built from the decisions in `PLAN.md`.
 Anything marked **DECISION NEEDED** is not settled and must not be implemented until answered.
 
-## Implementation boundary (through Phase 4)
+## Implementation boundary (through Phase 5)
 
 Implemented: users, groups, memberships, manual expenses with categories and tags,
-explicit per-user splits, maintained balances, settlements, invites, and activity. Expense
-split modes are `equal` and `unequal`; `itemised` and nonmanual sources arrive in
-their planned phases. Receipt items, membership removal/role changes,
-and group deletion remain future work.
+explicit per-user splits, maintained balances, settlements, invites, and activity. Expense split modes are `equal`, `unequal` and `itemised`. Phase 5 adds `source=ocr`,
+receipt items and item payees. Voice, membership removal/role changes and group
+deletion remain future work. Receipt drafts are stateless and never persisted.
+Item payees use a surrogate bigint primary key plus UNIQUE(item_id, user_id),
+consistent with the existing Django models.
 
 Migration `expenses.0003` materializes existing equal shares from membership join
 times (not expense dates), seeds the seven defaults, and creates historical
@@ -151,7 +152,7 @@ Invariant: `SUM(price_paise)` over the expense's items equals `expenses.amount_p
 | item_id | FK expense_items | |
 | user_id | FK users | |
 
-PRIMARY KEY (item_id, user_id). Only for `kind = item`. An `item` row with no payees means "split among all participants" (decided).
+UNIQUE (item_id, user_id), with a bigint surrogate primary key. Only for `kind = item`. An `item` row with no payees means "split among all participants" (decided).
 
 Itemised split computation (done at save time, written to `expense_splits`):
 1. Each `item` price is divided equally among its payees (all participants if it has none), using the rounding rule.
