@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% load static %}{% block content %}
+<a href="/groups/{{ group.id }}">&larr; Back to {{ group.name }}</a>
+<h1>Log an expense by voice</h1>
+<section class="card"><h2>Say what you spent</h2>
+<p>For example: “I paid 600 rupees for dinner, split with Rahul and Ankit.” Use group usernames. English and Hinglish are supported.</p>
+<p>Record up to 30 seconds. Audio is sent to Sarvam for transcription; the transcript and group usernames are sent to Groq to prepare a draft. This app keeps neither the recording nor transcript.</p>
+<p><button id="voice-record" type="button">Start recording</button> <button id="voice-stop" type="button" disabled>Stop and transcribe</button></p>
+<p id="voice-status" role="status" aria-live="polite"></p>
+<p><label for="voice-transcript">Transcript (you can also type or correct it)</label><textarea id="voice-transcript" maxlength="4000" rows="4"></textarea></p>
+<button id="voice-parse" type="button">Prepare draft from transcript</button>
+<p id="voice-error" role="alert"></p></section>
+<section class="card"><h2>Review and approve</h2><p>Check the amount, payer and participants. Nothing is saved until you approve. Blank participants means all members.</p>
+<ul id="voice-warnings" aria-live="polite"></ul>
+<form id="voice-review" method="post" action="/groups/{{ group.id }}/voice/approve" data-group="{{ group.id }}">{% csrf_token %}
+{{ form.as_p }}
+<p><label><input type="checkbox" name="approved" value="yes" required> I reviewed this expense and approve saving it.</label></p>
+<button id="voice-save">Approve and save expense</button>
+</form></section>
+<script src="{% static 'js/expenses.js' %}" defer></script>
+<script src="{% static 'js/voice.js' %}" defer></script>
+{% endblock %}

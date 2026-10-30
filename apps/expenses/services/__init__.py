@@ -58,13 +58,13 @@ def prepare(expense, *, paid_by=None, amount=None, description=None, expense_dat
     mode = split_mode if split_mode is not None else ("unequal" if splits is not None else "equal")
     if not isinstance(mode, str) or mode not in {"equal", "unequal", "itemised"}:
         raise ValidationError("Split mode must be equal, unequal or itemised.")
-    if not isinstance(source, str) or source not in {"manual", "ocr"}:
+    if not isinstance(source, str) or source not in {"manual", "ocr", "voice"}:
         raise ValidationError("Choose a supported expense source.")
     if source == "ocr" and paid_by != expense.created_by_id:
         raise ValidationError("The receipt uploader must be the payer.")
     if source == "ocr" and (items is None or mode == "unequal"):
         raise ValidationError("Receipts require items and equal or itemised splits.")
-    if source == "manual" and (items is not None or mode == "itemised"):
+    if source != "ocr" and (items is not None or mode == "itemised"):
         raise ValidationError("Receipt items require source ocr.")
     if participants is not None:
         if not isinstance(participants, list) or not participants or any(type(pk) is not int for pk in participants) or len(set(participants)) != len(participants) or not set(participants) <= members:

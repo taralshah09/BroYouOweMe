@@ -7,7 +7,7 @@ Anything marked **DECISION NEEDED** is not settled and must not be implemented u
 
 Implemented: users, groups, memberships, manual expenses with categories and tags,
 explicit per-user splits, maintained balances, settlements, invites, and activity. Expense split modes are `equal`, `unequal` and `itemised`. Phase 5 adds `source=ocr`,
-receipt items and item payees. Voice, membership removal/role changes and group
+receipt items and item payees. Phase 6 adds stateless voice drafts and source=voice. Membership removal/role changes and group
 deletion remain future work. Receipt drafts are stateless and never persisted.
 Item payees use a surrogate bigint primary key plus UNIQUE(item_id, user_id),
 consistent with the existing Django models.
@@ -301,6 +301,8 @@ All endpoints require login except signup, login, the health check and invite pr
 | Method | Path | Notes |
 |---|---|---|
 | POST | /groups/{id}/receipts/parse | Image upload, Tesseract, returns a draft (items, charges, total). Processed in memory and not stored. |
+| GET | /groups/{id}/voice | Recording and editable approval screen. |
+| POST | /groups/{id}/voice/approve | Reviewed form; requires approved=yes and saves source=voice through the expense service. |
 | POST | /groups/{id}/voice/parse | Audio upload, Sarvam transcription, Groq parsing, returns a draft expense. Processed in memory and not stored. |
 
 Drafts are stateless: they are returned to the browser and shown on the review screen. "Approve" submits a normal `POST /expenses` with `source = ocr` or `voice`. No draft table is needed.

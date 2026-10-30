@@ -118,3 +118,8 @@ AUTH_USER_MODEL = "accounts.User"
 AUTHENTICATION_BACKENDS = ["apps.accounts.backends.IdentityBackend"]
 LOGIN_URL = "/login"
 LOGIN_REDIRECT_URL = "/groups"
+
+# Provider keys stay server-side and are tried in the configured order.
+SARVAM_API_KEYS = env_list("SARVAM_API_KEYS")
+GROQ_API_KEYS = env_list("GROQ_API_KEYS")
+VOICE_MAX_BYTES = 2 * 1024 * 1024

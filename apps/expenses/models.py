@@ -32,7 +32,7 @@ class Expense(models.Model):
     category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.PROTECT, related_name="expenses")
     tag = models.CharField(max_length=40, null=True, blank=True)
     split_mode = models.CharField(max_length=10, default="equal", choices=[("equal", "Equal"), ("unequal", "Unequal"), ("itemised", "Itemised")])
-    source = models.CharField(max_length=10, default="manual", choices=[("manual", "Manual"), ("ocr", "Receipt")])
+    source = models.CharField(max_length=10, default="manual", choices=[("manual", "Manual"), ("ocr", "Receipt"), ("voice", "Voice")])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -44,7 +44,7 @@ class Expense(models.Model):
         constraints = [
             models.CheckConstraint(condition=models.Q(amount_paise__gt=0), name="expense_amount_positive"),
             models.CheckConstraint(condition=models.Q(split_mode__in=["equal", "unequal", "itemised"]), name="expense_split_mode_valid"),
-            models.CheckConstraint(condition=models.Q(source__in=["manual", "ocr"]), name="expense_source_valid"),
+            models.CheckConstraint(condition=models.Q(source__in=["manual", "ocr", "voice"]), name="expense_source_valid"),
         ]
         indexes = [models.Index(fields=["group", "-expense_date"], condition=models.Q(deleted_at__isnull=True), name="active_expense_date_idx"), models.Index(fields=["group", "category"], name="expense_category_idx")]
 

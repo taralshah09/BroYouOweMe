@@ -4,3 +4,4 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}details{margin-to
 
 .invite-link{overflow-wrap:anywhere}.invite-qr{display:block;max-width:100%;height:auto}
 #receipt-participants input{width:auto;margin-right:6px}#receipt-lines fieldset{min-width:0;margin:16px 0;padding:16px;border:1px solid var(--border);border-radius:8px}#receipt-lines input,#receipt-lines select{margin-bottom:10px}#receipt-error{color:#a32929}button:disabled{opacity:.6;cursor:wait}
+#voice-transcript{width:100%;max-width:100%;border:1px solid #b5c9be;padding:11px;border-radius:6px;font:inherit;color:#18332e;resize:vertical}#voice-review input[type=checkbox]{width:auto;margin-right:6px}#voice-error,#voice-warnings{color:#a32929}#voice-warnings{overflow-wrap:anywhere}

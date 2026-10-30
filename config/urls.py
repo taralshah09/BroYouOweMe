@@ -9,6 +9,9 @@ from apps.ai import views as ai
 from apps.settlements.views import balances
 
 urlpatterns = [
+    path("groups/<int:group_id>/voice", ai.voice_review, name="voice-review"),
+    path("groups/<int:group_id>/voice/parse", ai.voice_parse, name="voice-parse"),
+    path("groups/<int:group_id>/voice/approve", ai.voice_approve, name="voice-approve"),
     path("groups/<int:group_id>/receipts", ai.receipt_review, name="receipt-review"),
     path("groups/<int:group_id>/receipts/parse", ai.receipt_parse, name="receipt-parse"),
     path("", accounts.home, name="home"),

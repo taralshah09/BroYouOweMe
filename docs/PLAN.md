@@ -1,6 +1,6 @@
 # BroYouOweMe: Feature Definition and Phase Plan
 
-Status: Phases 0 through 4 validated. Phase 5 implemented; browser visual QA and a real receipt-photo trial remain pending.
+Status: Phases 0 through 4 validated. Phases 5 and 6 implemented; the owner reports voice logging works. Browser visual QA and a real receipt-photo trial remain pending.
 Source: `Assignment.pdf` (Decentro SDE Intern, Expense Sharing Service) plus extra requirements.
 
 ## Locked decisions
@@ -14,7 +14,7 @@ Source: `Assignment.pdf` (Decentro SDE Intern, Expense Sharing Service) plus ext
 | API | SSR pages plus JSON endpoints matching the assignment (`/signup`, `/groups`, `/groups/{id}/members`, `/expenses`, `/groups/{id}/expenses`, `/balances`) |
 | Money | INR only, stored as integer paise. Remainder paise are assigned deterministically so splits always sum to the total. |
 | Members | Registered users only. No guest placeholders. |
-| Voice transcription | Sarvam, transcription only. Five free accounts chained as fallbacks (each is the fallback for the previous one). Endpoints and limits to verify. |
+| Voice transcription | Sarvam, transcription only. Comma-separated SARVAM_API_KEYS chained as fallbacks in order. Endpoint and limits verified in Phase 6. |
 | Voice languages | Hinglish (the reason Sarvam was chosen) |
 | Parsing / tool calling | Groq free tier running an open-source OpenAI model (gpt-oss), called through the OpenAI SDK pointed at Groq's OpenAI-compatible endpoint. Turns transcripts into structured expenses and handles tool calling. Exact model (20B vs 120B) to pick after checking Groq's current free-tier limits and tool-calling support. |
 | Groups | Multiple admins per group. An admin can promote other members to admin, change roles, and remove other members, including other admins (removal needs zero balances). The last admin cannot leave until they make another member admin (no auto-promotion). |
@@ -214,6 +214,31 @@ Implemented on 2026-10-30:
 - Approval screen; nothing is saved until the user confirms
 - Exit: a spoken sentence becomes a draft expense that the user approves or edits.
 
+Implemented on 2026-10-30:
+- Browser microphone recording, 30-second auto-stop and in-browser WAV conversion;
+  bounded, validated audio remains in memory throughout the application.
+- Sarvam saaras:v3 codemix transcription with comma-separated SARVAM_API_KEYS in order.
+  Owner confirmed fallback includes rate limits, invalid/exhausted credentials,
+  provider failures and transport errors; bad audio is not retried across accounts.
+- Both providers use comma-separated key strings, with ordered fallback including
+  rate limits; Groq uses GROQ_API_KEYS. Empty entries and whitespace are ignored.
+- Groq GPT-OSS 20B strict structured output via OpenAI SDK, with server validation
+  of exact money/member IDs and warnings for ambiguous participants or payer.
+- Editable transcript and expense review, explicit approval, atomic source=voice
+  expense creation, and existing creator-only edit/delete and audit behavior.
+- 106 tests pass in Docker; local suite passes with the Tesseract-dependent test skipped. Includes provider
+  fallback, audio limits, strict parsing, membership/CSRF, draft non-persistence,
+  explicit approval, corrections and balance integrity through edit/delete.
+- Voice-source migration applied to the configured Neon database; balance integrity passes.
+  Rebuilt local Docker app is healthy and `/health` returns 200.
+- Owner reported the live voice logging trial works after trying the feature.
+  Browser host unavailable; native browser access was stopped by the automation
+  URL-policy check, so automated visual QA remains pending.
+- Comma-separated provider configuration and Groq fallback follow-up: all 10
+  provider tests pass, including blank entries, key order and rate-limit fallback.
+- Provider API/schema/limits verified against official documentation. Actual
+  Sarvam free-credit eligibility and account quotas remain console-specific.
+
 ### Phase 7: Insights
 - Monthly summary and spend analytics (by category and by month)
 - CSV export
@@ -224,7 +249,7 @@ Implemented on 2026-10-30:
 - API documentation, optional Postman collection and demo video
 
 ## Open items (not yet decided)
-1. **Sarvam verification:** current STT endpoint, audio length limits, Hinglish model/mode, free-tier terms, and the fallback-chain error condition (what triggers moving to the next account).
-2. **Groq verification:** which gpt-oss model, free-tier rate limits, and tool-calling reliability.
+1. **Sarvam live trial:** verify account free-credit eligibility and actual quotas. Owner reports the live voice flow works. Endpoint, 30-second limit, codemix mode and fallback conditions are resolved in Phase 6.
+2. **Groq live trial:** continue assessing extraction quality; owner reports the live voice flow works. GPT-OSS 20B uses strict structured output; no executable tool calls are needed for drafts. Published free-tier limits are documented in README.
 3. **Keep-alive:** the pinger must be external, since Render only counts incoming requests. Neon is on a Pro plan, so cold starts are not a concern; I'll still enable Django connection health checks.
 4. **Schema:** no open questions left. See `SCHEMA.md` section 6.

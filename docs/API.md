@@ -227,3 +227,27 @@ correct receipt items, amount, participants and mode; omitted items and source
 are preserved, and changing an OCR expense to manual is rejected. Receipt edits,
 items, split replacement, balances and audit snapshots commit atomically. Existing
 creator-only edit/delete and membership checks apply. Soft deletion retains items.
+
+
+## Phase 6 voice entry
+
+- `GET /groups/{id}/voice`: member-only recording, transcript and editable approval screen.
+- `POST /groups/{id}/voice/parse`: multipart `audio` (mono 16 kHz, 16-bit WAV,
+  max 2 MiB / 30 seconds) or JSON `{"transcript":"I paid 600 for dinner"}`
+  (1?4000 characters). Returns `{transcript, draft}` where draft contains `amount`
+  (exact rupee string or null), `description`, `paid_by` (member ID or null),
+  `participants` (member IDs), `warnings`, `source: "voice"`, `split_mode: "equal"`.
+  Ambiguous members are unselected. No expense or balance is written. Errors are
+  400 for invalid inputs and 503 for unavailable/unconfigured providers. If Groq
+  fails after transcription, the 503 response includes `transcript` for correction.
+- `POST /groups/{id}/voice/approve`: HTML form with normal `ExpenseForm` fields
+  and mandatory `approved=yes`; validates the reviewed fields and saves through
+  the expense service with source=voice. Success redirects to the expense detail.
+  Validation errors preserve entered form values. All endpoints require active
+  membership and POSTs require CSRF. Voice pages/responses are not cacheable.
+
+Clients may also submit reviewed JSON to normal `POST /expenses` with
+`source: "voice"`. Equal/subset and exact unequal shares use the existing API
+rules; voice does not accept receipt items. Creator-only edit/delete, audit
+snapshots and atomic ledger updates apply to voice expenses too. Never submit
+provider output automatically; show it for explicit review first.

@@ -1,7 +1,7 @@
 # BroYouOweMe
 
 An INR expense-sharing service built with Django server-rendered templates,
-plain CSS/JavaScript, and PostgreSQL on Neon. Phases 1–5 include receipt OCR with review, private session auth, invite links/QR codes, minimum-transfer suggestions, groups, equal/subset/unequal expenses, creator-only
+plain CSS/JavaScript, and PostgreSQL on Neon. Phases 1-6 include voice drafts, receipt OCR with review, private session auth, invite links/QR codes, minimum-transfer suggestions, groups, equal/subset/unequal expenses, creator-only
 edits and soft deletion, confirmed settlements, categories, and an activity feed.
 
 ## Local setup
@@ -87,11 +87,11 @@ For deployment, set explicit allowed hosts and trusted HTTPS origins, keep
 debug disabled, and configure HTTPS at the host. HTTPS redirect defaults on;
 the minimal health endpoint is exempt so container HTTP probes work.
 Receipt uploads use a bounded in-memory upload handler. OCR has byte, pixel and
-execution-time limits; voice processing arrives in its planned phase.
+execution-time limits. Voice recordings are bounded WAV uploads processed in memory.
 
 The schema and later work are documented in [docs/SCHEMA.md](docs/SCHEMA.md)
 and [docs/PLAN.md](docs/PLAN.md). Money is stored as integer paise, all domain
-IDs are bigint, and timestamps use UTC. Voice, insights, and production deployment remain future work.
+IDs are bigint, and timestamps use UTC. Insights and production deployment remain future work.
 
 Configuration references: [Django PostgreSQL documentation](https://docs.djangoproject.com/en/5.2/ref/databases/),
 [custom user migration guidance](https://docs.djangoproject.com/en/5.2/topics/auth/customizing/#changing-to-a-custom-user-model-mid-project),
@@ -230,8 +230,48 @@ English language data and add it to PATH. Install updated Python requirements an
 run `python manage.py migrate` before running this version. Receipt edits use the
 same review screen and preserve item history in activity snapshots; deletion
 reverses balances while retaining the receipt rows. `check_balances` also verifies
-receipt totals and allocations. Source constraints currently allow manual and OCR
-expenses; voice is not enabled.
+receipt totals and allocations. Source constraints allow manual, OCR and voice expenses.
 
 Implementation references: [Tesseract command line](https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html)
 and [Pillow image handling](https://pillow.readthedocs.io/en/stable/reference/Image.html).
+
+
+## Phase 6: Voice logging
+
+Choose **Log by voice** on a group page. Record an English/Hinglish sentence
+(up to 30 seconds), or type a transcript. Review the resulting amount,
+description, payer and participants, correct them, check the approval box and
+save. You can enter exact shares during review. No draft operation writes to the
+ledger; approval uses the same locked, atomic expense service as manual entry.
+
+Configure `SARVAM_API_KEYS` and `GROQ_API_KEYS` as comma-separated key strings in
+`.env`, then recreate the container (`docker compose up -d --force-recreate`).
+One key per provider is sufficient; whitespace and empty entries are ignored.
+Both providers try configured keys in order. For example, use
+`SARVAM_API_KEYS=key1,key2,key3` and `GROQ_API_KEYS=key1,key2`. Fallback includes
+401/402/403, 429 rate limits, server errors and network failures. Invalid audio
+is not retried across accounts. Keys never reach the browser. Account credits,
+free-tier eligibility and actual limits must be checked in the provider consoles.
+
+Microphone access requires HTTPS or localhost and MediaRecorder/Web Audio support.
+The browser converts captured audio to mono 16 kHz, 16-bit PCM WAV. The server
+validates WAV contents, byte size (2 MiB), complete frame data and duration before
+calling Sarvam's synchronous `/speech-to-text` with `saaras:v3`, `codemix` and
+automatic language detection. Audio never touches application disk or the database.
+Transcripts and group usernames go to Groq through the OpenAI SDK using
+`openai/gpt-oss-20b` and strict JSON schema output. No executable tools are exposed;
+server validation checks money and member IDs again. Unknown members remain
+unselected and warnings prompt correction. The app stores neither transcript nor
+audio; providers have their own retention policies. Draft responses disable caching.
+
+Groq's published free-plan table currently lists 30 requests/minute, 1,000/day,
+8,000 tokens/minute and 200,000/day for both GPT-OSS sizes; 20B is used for this
+small extraction task. Account limits may differ. Calls have explicit timeouts
+and no SDK retries. Each provider stops starting fallback attempts after a
+40-second budget; Gunicorn allows 120 seconds for both provider chains. A parser failure preserves the transcript for correction.
+The owner reported a successful live voice logging trial. Automated browser visual
+QA remains pending because browser automation was unavailable.
+
+References: [Sarvam STT API](https://docs.sarvam.ai/api-reference/speech-to-text/transcribe),
+[Groq structured outputs](https://console.groq.com/docs/structured-outputs),
+[Groq rate limits](https://console.groq.com/docs/rate-limits).
