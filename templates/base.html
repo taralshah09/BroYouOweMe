@@ -1,11 +1,8 @@
 {% load static %}
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}BroYouOweMe{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/main.css' %}">
-</head>
-<body><main>{% block content %}{% endblock %}</main></body>
-</html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}BroYouOweMe{% endblock %}</title><link rel="stylesheet" href="{% static 'css/main.css' %}"></head>
+<body><header><a class="brand" href="/">BroYouOweMe<span>Split it. Keep it simple.</span></a><nav>
+{% if user.is_authenticated %}<a href="/groups">My groups</a><a href="/balances">My balances</a><a href="/users">People</a><span>{{ user.username }}</span><form method="post" action="/logout">{% csrf_token %}<button class="secondary">Log out</button></form>
+{% else %}<a href="/login">Log in</a><a class="button" href="/signup">Sign up</a>{% endif %}
+</nav></header><main>{% block content %}{% endblock %}</main><footer>Made for shared plans and fair shares. All amounts in INR.</footer></body></html>

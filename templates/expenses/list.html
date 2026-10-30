@@ -1,0 +1,1 @@
+{% extends "base.html" %}{% block content %}<a href="/groups/{{ group.id }}">&larr; {{ group.name }}</a><h1>Expense history</h1><section class="card">{% include "expenses/rows.html" %}</section>{% endblock %}

@@ -1,0 +1,1 @@
+<ul class="rows">{% for debtor, position in balances.items %}{% for creditor, amount in position.owes.items %}<li><span><strong>{{ debtor }}</strong> owes {{ creditor }}</span><strong>INR {{ amount }}</strong></li>{% endfor %}{% empty %}<li>All square. No outstanding balances.</li>{% endfor %}</ul>

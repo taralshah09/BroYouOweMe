@@ -73,7 +73,7 @@ if not database_url:
     raise ImproperlyConfigured("Set DATABASE_URL to a PostgreSQL connection URL.")
 DATABASES = {"default": dj_database_url.parse(
     database_url,
-    conn_max_age=int(os.environ.get("DB_CONN_MAX_AGE") or "0"),
+    conn_max_age=int(os.environ.get("DB_CONN_MAX_AGE") or "60"),
     conn_health_checks=True,
 )}
 if DATABASES["default"]["ENGINE"] != "django.db.backends.postgresql":
@@ -109,3 +109,8 @@ CSRF_COOKIE_SECURE = not DEBUG
 SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", not DEBUG)
 SECURE_REDIRECT_EXEMPT = [r"^health$"]
 X_FRAME_OPTIONS = "DENY"
+
+AUTH_USER_MODEL = "accounts.User"
+AUTHENTICATION_BACKENDS = ["apps.accounts.backends.IdentityBackend"]
+LOGIN_URL = "/login"
+LOGIN_REDIRECT_URL = "/groups"

@@ -1,0 +1,1 @@
+<ul class="rows">{% for expense in expenses %}<li><div><a href="/expenses/{{ expense.id }}"><strong>{{ expense.description }}</strong></a><small>{{ expense.paid_by }} paid &middot; {{ expense.expense_date }}</small></div><strong>INR {{ expense.amount }}</strong></li>{% empty %}<li>No expenses yet. Start with the first shared bill.</li>{% endfor %}</ul>

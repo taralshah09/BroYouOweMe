@@ -1,7 +1,20 @@
 # BroYouOweMe: Database Schema and API Design
 
-Status: domain schema not yet implemented; Phase 0 scaffold only. Built from the decisions in `PLAN.md`.
+Status: Phase 1 core schema implemented; later-phase tables remain planned. Built from the decisions in `PLAN.md`.
 Anything marked **DECISION NEEDED** is not settled and must not be implemented until answered.
+
+## Phase 1 implementation boundary
+
+This document describes the complete target schema. Phase 1 implements `users`,
+`groups`, `group_members`, the core `expenses` columns, and `balances` only.
+Categories, tags, split rows, items, settlements, invites, and activity arrive
+in their planned phases. Expense mode/source are constrained to `equal`/`manual`.
+Group and expense queries exclude soft-deleted rows, but no deletion endpoint is
+available yet. Membership is append-only in this phase. An expense's implicit
+participants are memberships with `joined_at <= expense.created_at`, so later
+joins and backdated expense dates cannot alter historical allocations. Phase 2
+must materialize those shares before enabling edits or membership removal/rejoin.
+Balance integrity recomputes these implicit shares until that transition.
 
 ## 1. Conventions
 

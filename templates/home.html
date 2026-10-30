@@ -1,6 +1,1 @@
-{% extends "base.html" %}
-{% block content %}
-<h1>BroYouOweMe</h1>
-<p>Shared expenses, clear balances.</p>
-<p>The project foundation is ready. Expense sharing is coming next.</p>
-{% endblock %}
+{% extends "base.html" %}{% block content %}<section class="hero"><p class="eyebrow">LESS MATH. MORE MEMORIES.</p><h1>Good times.<br>Clear balances.</h1><p>One person pays. Everyone knows their share.<br>Keep your group's expenses together, down to the last paisa.</p><a class="button" href="{% if user.is_authenticated %}/groups{% else %}/signup{% endif %}">Start sharing expenses &rarr;</a></section><section class="grid"><article class="card"><p class="eyebrow">01 / GATHER</p><h2>Your people, one group</h2><p>Create a group for a trip, a flat, or a dinner. Add your friends by username.</p></article><article class="card"><p class="eyebrow">02 / RECORD</p><h2>Log it once</h2><p>Record who paid and what it cost. Every member gets an equal share.</p></article><article class="card"><p class="eyebrow">03 / RELAX</p><h2>Know who owes whom</h2><p>Opposite debts cancel automatically. Your balances stay clear.</p></article></section>{% endblock %}

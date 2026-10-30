@@ -1,6 +1,6 @@
 # BroYouOweMe: Feature Definition and Phase Plan
 
-Status: Phase 0 complete and validated. Later phases have not started.
+Status: Phases 0 and 1 complete and validated. Phase 2 has not started.
 Source: `Assignment.pdf` (Decentro SDE Intern, Expense Sharing Service) plus extra requirements.
 
 ## Locked decisions
@@ -105,6 +105,26 @@ Completed and verified on 2026-10-30:
 - Validation rules from the assignment
 - Unit tests for expense creation, balances, validation
 - Exit: the Example Scenario (Mohit/Rahul/Ankit, Dinner 1200) produces the exact expected JSON.
+
+Completed and verified on 2026-10-30:
+- Custom user model and initial migrations; case-insensitive email/username
+  signup and login, hashed passwords, session auth, CSRF-protected logout.
+- Groups with creator-admin membership and admin-only additions; membership
+  checks on every group read and expense operation.
+- Equal-split manual expenses, deterministic rounding, maintained pairwise
+  balances, group locking, atomic PostgreSQL upserts, and integrity command.
+- SSR pages and JSON endpoints for accounts, groups, members, expenses, and
+  group/overall balances. API usage is documented in `docs/API.md`.
+- The exact Mohit/Rahul/Ankit Dinner 1200 balance JSON passes end to end.
+- 38 tests pass locally and in Docker, including partial-write rollback,
+  concurrent creation, overflow validation, CSRF, and historical membership.
+- Initial migrations applied on Neon; database integrity and HTTP health pass.
+- WSGI database connections are reused for up to 60 seconds by default, with
+  health checks enabled; `DB_CONN_MAX_AGE` can override this (`0` for ASGI).
+- Browser signup, group creation and expense submission verified against a
+  disposable local database; desktop and mobile layouts visually inspected.
+- Phase 1 implicit shares use membership join times, not expense dates. Phase 2
+  must materialize them before edits or member removal/rejoining are enabled.
 
 ### Phase 2: Ledger
 - Per-user split rows (replaces implicit equal split) and unequal splits
