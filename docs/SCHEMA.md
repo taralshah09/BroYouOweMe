@@ -311,9 +311,9 @@ Drafts are stateless: they are returned to the browser and shown on the review s
 | Method | Path | Notes |
 |---|---|---|
 | GET | /groups/{id}/activity | Paginated feed. |
-| GET | /groups/{id}/insights | Category and monthly totals. |
-| GET | /groups/{id}/expenses/export.csv | CSV export. |
-| GET | /groups/{id}/nudges | Pre-filled reminder text for people who owe. |
+| GET | /groups/{id}/insights | Optional YYYY-MM month; group/category totals, caller paid/share, twelve-month history. |
+| GET | /groups/{id}/expenses/export.csv | Active expenses and named splits; optional YYYY-MM month, otherwise all dates. |
+| GET | /groups/{id}/nudges | Shareable text for direct debts owed to the caller, excluding pending claims. No delivery. |
 | GET | /health | For the external pinger; runs `SELECT 1`. |
 
 ## 6. Decisions

@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Payment reminders · {{ group.name }} · BroYouOweMe{% endblock %}
+{% block content %}
+<a href="/groups/{{ group.id }}">&larr; Back to {{ group.name }}</a><h1>Payment reminders</h1>
+<p>Copy a reminder or share it using your device. Nothing is sent automatically. These are current direct debts owed to you; amounts awaiting your confirmation are excluded. Reopen this page before sharing to get the latest balances.</p>
+<p><a href="/groups/{{ group.id }}/settlements">Review payment claims</a></p>
+{% for nudge in nudges %}<section class="card"><h2>{{ nudge.username }} · INR {{ nudge.amount }}</h2><label for="nudge-{{ forloop.counter }}">Reminder text</label><textarea class="share-text" id="nudge-{{ forloop.counter }}" rows="5" readonly>{{ nudge.text }}</textarea><p><button type="button" data-copy="nudge-{{ forloop.counter }}">Copy reminder</button> <button type="button" class="secondary" data-share="nudge-{{ forloop.counter }}" hidden>Share reminder</button></p><p class="share-status" role="status" aria-live="polite"></p></section>{% empty %}<section class="card"><h2>No reminders needed</h2><p>Nobody has an unclaimed direct debt owed to you in this group. Check settlements for payments awaiting confirmation.</p></section>{% endfor %}
+<script src="{% static 'js/insights.js' %}" defer></script>
+{% endblock %}

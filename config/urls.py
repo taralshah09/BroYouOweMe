@@ -6,9 +6,13 @@ from apps.groups import views as groups
 from apps.settlements import views as settlements
 from apps.activity.views import activity
 from apps.ai import views as ai
+from apps.insights import views as insights
 from apps.settlements.views import balances
 
 urlpatterns = [
+    path("groups/<int:group_id>/insights", insights.insights, name="insights"),
+    path("groups/<int:group_id>/expenses/export.csv", insights.export_csv, name="expense-export"),
+    path("groups/<int:group_id>/nudges", insights.nudges, name="nudges"),
     path("groups/<int:group_id>/voice", ai.voice_review, name="voice-review"),
     path("groups/<int:group_id>/voice/parse", ai.voice_parse, name="voice-parse"),
     path("groups/<int:group_id>/voice/approve", ai.voice_approve, name="voice-approve"),

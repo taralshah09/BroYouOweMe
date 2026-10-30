@@ -1,6 +1,6 @@
 # BroYouOweMe: Feature Definition and Phase Plan
 
-Status: Phases 0 through 4 validated. Phases 5 and 6 implemented; the owner reports voice logging works. Browser visual QA and a real receipt-photo trial remain pending.
+Status: Phases 0 through 4 validated. Phases 5 through 7 implemented; the owner reports voice logging works. Phase 7 tests and a full page-structure audit pass. Representative desktop and all 21 mobile page-state visual checks are complete; real-device interaction QA and a real receipt-photo trial remain pending. The audit also identifies unimplemented group lifecycle decisions; see `docs/UI_AUDIT.md`.
 Source: `Assignment.pdf` (Decentro SDE Intern, Expense Sharing Service) plus extra requirements.
 
 ## Locked decisions
@@ -199,7 +199,8 @@ Implemented on 2026-10-30:
 - 91 tests pass in Docker, including actual Tesseract on an in-memory generated receipt;
   local suite passes with the binary-dependent test skipped. Checks and migration
   consistency pass. No real receipt photo was supplied; that exit trial remains pending.
-- Browser automation host was unavailable, so desktop/mobile visual QA remains pending.
+- Browser automation host was unavailable at implementation time. Follow-up native
+  browser mobile review is now complete; see `docs/UI_AUDIT.md` for coverage.
 - Receipt migration applied to the configured Neon database; balance integrity passes.
   Local Docker app rebuilt and restarted; `/health` returns 200 and container is healthy.
 - Receipt-parser follow-up: accept whole-rupee prices and currency suffixes, exclude
@@ -233,7 +234,8 @@ Implemented on 2026-10-30:
   Rebuilt local Docker app is healthy and `/health` returns 200.
 - Owner reported the live voice logging trial works after trying the feature.
   Browser host unavailable; native browser access was stopped by the automation
-  URL-policy check, so automated visual QA remains pending.
+  URL-policy check at implementation time. Follow-up native browser mobile review
+  is now complete; see `docs/UI_AUDIT.md` for coverage and remaining device trials.
 - Comma-separated provider configuration and Groq fallback follow-up: all 10
   provider tests pass, including blank entries, key order and rate-limit fallback.
 - Provider API/schema/limits verified against official documentation. Actual
@@ -243,6 +245,35 @@ Implemented on 2026-10-30:
 - Monthly summary and spend analytics (by category and by month)
 - CSV export
 - Settle-up nudges (pre-filled share text)
+
+Implemented on 2026-10-30:
+- Membership-protected SSR/JSON insights with selected-month group spend/count,
+  caller paid/share totals, category breakdown (including Uncategorised), and
+  twelve months of totals with zero-spend months included. Uses expense dates,
+  exact paise, active expenses only; settlements do not alter spending.
+- Streaming UTF-8 CSV for a selected month or all dates, one row per expense,
+  named participant splits, caller share, stable ordering and spreadsheet formula
+  protection. No emails or global user directory are exported.
+- Copyable reminder text and supported-device share controls for actual direct
+  debts owed to the caller, excluding pending claims. No messages are sent.
+  Read responses disable caching; Phase 7 adds no schema migration/provider.
+- 117 tests pass in Docker, including actual Tesseract; the local 116-test run
+  passed with one binary-dependent skip before adding the page-audit test. All
+  eight insights/audit tests pass locally. Django checks, migration consistency,
+  and configured-database balance integrity pass. The rebuilt app is healthy.
+- Seven Phase 7 business/endpoint tests plus a 21-page SSR structure audit cover
+  report totals, rounding, dates, edits/deletes, settlements, group isolation,
+  membership, validation, CSV quoting/formulas and pending-payment reminders.
+- Full UI source inventory, component baseline, priorities and reference-led
+  redesign acceptance matrix are in `docs/UI_AUDIT.md`. Native desktop review
+  covered expense detail, dashboard and insights. The owner stopped the initial
+  review, then explicitly requested the remaining mobile checks. Native responsive
+  review now covers all 21 page states at 320px or 390px; the audit records each
+  page's coverage. Fixed and visually rechecked a flex-row amount-wrapping defect.
+  Physical-device and full transaction-flow acceptance remain separate work.
+- Audit finding: role changes, member removal/leaving and group deletion are
+  locked decisions with no existing implementation. Track separately before
+  claiming all planned behaviour is delivered.
 
 ### Phase 8: Delivery
 - README: setup, architecture, schema explanation, assumptions, design decisions, future improvements

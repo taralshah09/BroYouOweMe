@@ -1,7 +1,7 @@
 # BroYouOweMe
 
 An INR expense-sharing service built with Django server-rendered templates,
-plain CSS/JavaScript, and PostgreSQL on Neon. Phases 1-6 include voice drafts, receipt OCR with review, private session auth, invite links/QR codes, minimum-transfer suggestions, groups, equal/subset/unequal expenses, creator-only
+plain CSS/JavaScript, and PostgreSQL on Neon. Phases 1-7 include spending insights, CSV export, shareable payment reminders, voice drafts, receipt OCR with review, private session auth, invite links/QR codes, minimum-transfer suggestions, groups, equal/subset/unequal expenses, creator-only
 edits and soft deletion, confirmed settlements, categories, and an activity feed.
 
 ## Local setup
@@ -91,7 +91,7 @@ execution-time limits. Voice recordings are bounded WAV uploads processed in mem
 
 The schema and later work are documented in [docs/SCHEMA.md](docs/SCHEMA.md)
 and [docs/PLAN.md](docs/PLAN.md). Money is stored as integer paise, all domain
-IDs are bigint, and timestamps use UTC. Insights and production deployment remain future work.
+IDs are bigint, and timestamps use UTC. Production delivery remains Phase 8 work.
 
 Configuration references: [Django PostgreSQL documentation](https://docs.djangoproject.com/en/5.2/ref/databases/),
 [custom user migration guidance](https://docs.djangoproject.com/en/5.2/topics/auth/customizing/#changing-to-a-custom-user-model-mid-project),
@@ -269,9 +269,38 @@ Groq's published free-plan table currently lists 30 requests/minute, 1,000/day,
 small extraction task. Account limits may differ. Calls have explicit timeouts
 and no SDK retries. Each provider stops starting fallback attempts after a
 40-second budget; Gunicorn allows 120 seconds for both provider chains. A parser failure preserves the transcript for correction.
-The owner reported a successful live voice logging trial. Automated browser visual
-QA remains pending because browser automation was unavailable.
+The owner reported a successful live voice logging trial. Follow-up native browser
+review covered the mobile voice layout and all other page states; see the UI audit
+for precise coverage and remaining physical-device interaction checks.
 
 References: [Sarvam STT API](https://docs.sarvam.ai/api-reference/speech-to-text/transcribe),
 [Groq structured outputs](https://console.groq.com/docs/structured-outputs),
 [Groq rate limits](https://console.groq.com/docs/rate-limits).
+
+## Phase 7: Insights
+
+Open **Insights & export** from a group. Select a month to see group spending,
+expense count, your actual participant share, and how much you paid. Category
+totals cover that month; the monthly list covers twelve months ending with the
+selection, including zero-spend months. Reports use `expense_date`, exclude
+soft-deleted expenses, and never treat settlements as spending. Missing categories
+appear as Uncategorised. The default is the current month in the app's UTC timezone.
+All totals use integer paise and exact two-decimal INR strings.
+
+Download the selected month or all dates as UTF-8 CSV. Each active expense gets
+one row with its date, description, category, tag, source, payer, total, your share
+and named participant splits. Rows are ordered by expense date and ID. User text
+that could execute as a spreadsheet formula is prefixed with an apostrophe.
+CSV describes current expenses; settlement history and deleted expense versions
+remain in the activity ledger.
+
+**Payment reminders** provides copyable text for actual direct debts owed to you
+in the selected group. Pending claims awaiting your confirmation are subtracted
+so a payer is not chased for those amounts. A fully pending debt needs no reminder.
+Refresh before sharing for the latest balance. Use Copy, manually select the
+text, or use your device's Share feature when supported. Nothing is sent automatically.
+Every report/export/reminder requires current group membership and disables caching.
+Phase 7 needs no migration or new external provider.
+
+The page inventory, component audit, gaps and redesign checklist are in
+[docs/UI_AUDIT.md](docs/UI_AUDIT.md).

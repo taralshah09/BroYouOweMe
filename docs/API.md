@@ -1,4 +1,4 @@
-# API (through Phase 4)
+# API (through Phase 7)
 
 All paths omit trailing slashes. Requests may be JSON objects or HTML form
 submissions. GET defaults to JSON; send `Accept: text/html` for SSR pages.
@@ -251,3 +251,37 @@ Clients may also submit reviewed JSON to normal `POST /expenses` with
 rules; voice does not accept receipt items. Creator-only edit/delete, audit
 snapshots and atomic ledger updates apply to voice expenses too. Never submit
 provider output automatically; show it for explicit review first.
+## Phase 7: Insights, export and reminders
+
+All three endpoints require a session and active group membership. Reads never
+change the ledger. Responses use `Cache-Control: no-store`. Use `Accept: text/html`
+for the insights and reminders pages; otherwise they return JSON.
+
+| Method | Path | Response |
+|---|---|---|
+| GET | `/groups/{id}/insights?month=2026-10` | Month summary, category totals, twelve monthly totals |
+| GET | `/groups/{id}/expenses/export.csv?month=2026-10` | CSV attachment, optionally filtered to one month |
+| GET | `/groups/{id}/nudges` | `{"nudges": [{"user_id": 2, "username": "bob", "amount": "3.00", "pending_amount": "2.00", "text": "..."}]}` |
+
+`month` must be a valid `YYYY-MM` between `0002-01` and `9998-12`; invalid/empty
+values return 400. Insights defaults to the current UTC month. CSV defaults to all
+dates. Other dates follow the existing expense API.
+
+Insights response fields: `group_id`, `month`, `currency: "INR"`,
+`summary: {total, expense_count, your_paid, your_share}`, `categories: [{id, name,
+amount}]`, and `months: [{month, amount}]` in ascending order. Money is always a
+two-decimal string. Category totals cover the selected month; monthly totals cover
+the twelve months ending with it. No category is represented by `id: null` and
+`name: "Uncategorised"`. Totals include only active expenses in that group, using
+`expense_date`. Settlements never reduce spending. Personal totals are for the caller.
+
+CSV columns: `expense_id, expense_date, description, category, tag, source, paid_by,
+amount_inr, your_share_inr, splits_inr`. One row per active expense; named splits
+use `username: amount; username: amount` in user-ID order. User text is quoted by
+the CSV writer and protected against spreadsheet formula execution with a leading
+apostrophe when needed. The download contains no email addresses or account directory.
+
+Nudges cover only direct debts owed to the caller. Amounts reserved by pending
+claims are excluded and reported separately; fully reserved debts are omitted.
+Amounts come from current pairwise balances, not simplified suggestions. This
+endpoint generates text only and sends no messages or notifications.

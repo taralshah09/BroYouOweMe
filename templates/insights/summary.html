@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Spending insights · {{ group.name }} · BroYouOweMe{% endblock %}
+{% block content %}
+<a href="/groups/{{ group.id }}">&larr; Back to {{ group.name }}</a>
+<h1>Spending insights</h1>
+<p>Spending uses the expense date, including backdated bills. Deleted expenses and settlements are excluded. Your share is what you consumed; your paid total is what you funded.</p>
+<form method="get" class="card report-filter"><label for="report-month">Summary month</label><input type="month" id="report-month" name="month" value="{{ report.month }}" min="0002-01" max="9998-12" required><button>Show summary</button></form>
+<div class="grid summary-grid">
+<article class="card"><h2>Group spending</h2><strong>INR {{ report.summary.total }}</strong><p>{{ report.summary.expense_count }} expense{{ report.summary.expense_count|pluralize }} in {{ report.month }}</p></article>
+<article class="card"><h2>Your share</h2><strong>INR {{ report.summary.your_share }}</strong></article>
+<article class="card"><h2>You paid</h2><strong>INR {{ report.summary.your_paid }}</strong></article>
+</div>
+<div class="columns"><section class="card"><h2>By category · {{ report.month }}</h2><ul class="rows">{% for category in report.categories %}<li><span>{{ category.name }}</span><strong>INR {{ category.amount }}</strong></li>{% empty %}<li>No spending this month. Choose another month or add an expense.</li>{% endfor %}</ul></section>
+<section class="card"><h2>Monthly spending</h2><p>Twelve months ending {{ report.month }}.</p><ul class="rows">{% for month in report.months %}<li><span>{{ month.month }}</span><strong>INR {{ month.amount }}</strong></li>{% endfor %}</ul></section></div>
+<section class="card"><h2>Export expenses</h2><p>One row per expense, with payer, category, your share and all participant splits. Amounts are in INR.</p><p><a class="button" href="/groups/{{ group.id }}/expenses/export.csv?month={{ report.month }}">Export {{ report.month }}</a> <a class="button secondary" href="/groups/{{ group.id }}/expenses/export.csv">Export all dates</a></p></section>
+{% endblock %}
