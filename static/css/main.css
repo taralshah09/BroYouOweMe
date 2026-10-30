@@ -1,0 +1,4 @@
+:root { font-family: system-ui, sans-serif; color: #18332e; background: #f7faf8; }
+main { max-width: 48rem; margin: 12vh auto; padding: 1.5rem; }
+h1 { letter-spacing: -0.04em; }
+p { line-height: 1.6; }
