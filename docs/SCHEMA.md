@@ -1,14 +1,14 @@
 # BroYouOweMe: Database Schema and API Design
 
-Status: Phase 2 ledger schema implemented; later-phase tables remain planned. Built from the decisions in `PLAN.md`.
+Status: Phases 1?4 ledger and invite schema implemented; later-phase tables remain planned. Built from the decisions in `PLAN.md`.
 Anything marked **DECISION NEEDED** is not settled and must not be implemented until answered.
 
-## Implementation boundary (through Phase 2)
+## Implementation boundary (through Phase 4)
 
 Implemented: users, groups, memberships, manual expenses with categories and tags,
-explicit per-user splits, maintained balances, settlements, and activity. Expense
+explicit per-user splits, maintained balances, settlements, invites, and activity. Expense
 split modes are `equal` and `unequal`; `itemised` and nonmanual sources arrive in
-their planned phases. Receipt items, invites, membership removal/role changes,
+their planned phases. Receipt items, membership removal/role changes,
 and group deletion remain future work.
 
 Migration `expenses.0003` materializes existing equal shares from membership join
@@ -250,8 +250,7 @@ All endpoints require login except signup, login, the health check and invite pr
 |---|---|---|
 | POST | /signup | Email-based account creation (with a chosen username). Also serves as the assignment's "create user". |
 | POST | /login, /logout | Session auth. Login with email or username plus password. |
-| POST | /users | Assignment endpoint; same behaviour as signup. |
-| GET | /users | All users, as the assignment requires. |
+| GET/POST | /users | Removed at owner request; 404. No platform directory. |
 
 ### Groups and members
 | Method | Path | Notes |
@@ -331,3 +330,7 @@ Drafts are stateless: they are returned to the browser and shown on the review s
 
 ### Still open
 - None.
+
+Phase 4 implements the invites table and endpoints described above. Admins can
+list links at `GET /groups/{id}/invites` and retrieve SVG QR at
+`GET /groups/{id}/invites/{invite_id}/qr`. Revocation also accepts POST for HTML forms.

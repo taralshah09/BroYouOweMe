@@ -1,12 +1,12 @@
-# API (through Phase 2)
+# API (through Phase 4)
 
 All paths omit trailing slashes. Requests may be JSON objects or HTML form
 submissions. GET defaults to JSON; send `Accept: text/html` for SSR pages.
 `/`, `/signup`, and `/login` serve HTML on GET. Every route except signup,
-login, and health requires session authentication. Unauthenticated JSON requests
+login, health, and invite preview requires session authentication. Anonymous invite acceptance is also allowed to start the signup flow. Unauthenticated JSON requests
 return 401; browser requests redirect to login. Unsupported methods return 405.
 Bad inputs return 400, denied group access returns 403, missing rows return 404.
-Validation JSON uses `errors`; access and routing errors use `error`.
+Validation JSON uses `errors`; access errors use `error`. Unmatched URLs (including removed `/users`) use Django's standard 404 response.
 
 ## Authentication and CSRF
 
@@ -15,7 +15,7 @@ Validation JSON uses `errors`; access and routing errors use `error`.
 3. Preserve the session cookie. Signup/login rotate the CSRF token, so use the
    current cookie for later requests. CSRF checks are never exempted.
 
-Signup: `POST /signup` or `POST /users` with
+Signup: `POST /signup` with
 `{"username":"Mohit","email":"mohit@example.com","password":"your strong password"}`.
 Returns 201 with `{"id":1,"username":"Mohit"}` and starts a session. HTML forms
 use `password1` and `password2` for confirmation. Email and username are unique
@@ -25,7 +25,7 @@ without regard to case. Usernames are limited to 32 characters and cannot contai
 Login: `POST /login` with `{"username":"Mohit","password":"your strong password"}`.
 The `username` field also accepts an email, case-insensitively. Returns the same
 user object with 200. `POST /logout` ends the session; GET is not allowed.
-`GET /users` returns a list of active users with IDs and usernames only.
+`/users` is removed; GET and POST return 404. There is no global user directory.
 
 ## Groups
 
@@ -84,7 +84,7 @@ Mohit/Rahul/Ankit Dinner 1200 scenario returns:
 The payer's share never becomes a debt to themselves. Opposite debts net within
 each pair. `GET /balances` combines the caller's pairs across active groups;
 it does not expose pairs between other people. Both return `{}` when settled.
-Settlements are available below; simplification arrives in Phase 3.
+Settlements and display-only simplification are available below.
 
 `GET /health` returns 200 `{"status":"ok"}` or 503
 `{"status":"unavailable"}` based on a database query.
@@ -166,3 +166,38 @@ The migration materializes Phase 1 participants using membership join times,
 retains existing balances, and seeds creation events at original expense creation
 times. `python manage.py check_balances` verifies stored share totals and recomputes
 all active expense debts minus confirmed settlements under group locks.
+
+
+## Suggested settlements (Phase 3)
+
+`GET /groups/{id}/simplified` requires active membership. JSON returns
+`{"display_only":true,"transfers":[{"payer":2,"payer_username":"Rahul","receiver":1,"receiver_username":"Mohit","amount":400}]}`.
+The exact algorithm minimizes transfer count across net group balances. It does not
+write balances, reserve pending claims, or create settlements. Suggestions may
+connect people without a direct debt; actual claims still require pairwise debt.
+Accept: text/html renders the suggestions screen.
+
+## Invites (Phase 4)
+
+- `GET /groups/{id}/invites`: admin-only list, including revoked/expired history.
+- `POST /groups/{id}/invites`: admin-only creation, empty body; 201 with `id`,
+  absolute `url`, relative `qr_url`, `active`, `expires_at`, and `revoked_at`.
+- `POST` or `DELETE /groups/{id}/invites/{invite_id}`: admin-only revocation.
+- `GET /groups/{id}/invites/{invite_id}/qr`: admin-only SVG QR generated locally
+  in memory. Inactive links return 404.
+- `GET /invite/{token}`: public preview with only `group_name` and `member_count`.
+- `POST /invite/{token}/join`: authenticated users join; JSON returns `group_id`.
+  Anonymous HTML users go to signup; JSON returns 401 with `signup_required: true`.
+  The session remembers the explicitly accepted invite and auto-joins after signup
+  or login (JSON includes `group_id`). Invalid forms retain the pending invitation.
+
+Links are random, multi-use, and expire after seven days. Revocation and group
+soft deletion make them unusable. Joining preserves historical splits. Repeat joins
+duplicate neither membership nor activity; rejoining restores member role. Joining
+and revocation serialize on the group lock. Expiry during signup still allows the
+account to be created, without joining. Preview GET never changes pending invites.
+All mutations require CSRF. Generate links from the canonical reachable host.
+
+Member additions also accept `{"username":"exact_username"}` case-insensitively.
+Known `user_id` values remain supported by the API. Neither UI enumerates platform
+accounts; group member lists require active membership.

@@ -10,6 +10,58 @@ from apps.expenses.services.money import validate_paise
 from .models import Balance, Settlement
 
 
+def minimum_transfers(net_balances):
+    """Exact memoized search over debtor/creditor matches, in integer paise."""
+    from functools import lru_cache
+
+    if any(type(value) is not int for value in net_balances.values()) or sum(net_balances.values()):
+        raise ValueError("Net balances must be integer paise and sum to zero.")
+    users = sorted(user for user, value in net_balances.items() if value)
+
+    @lru_cache(maxsize=None)
+    def solve(state):
+        if not any(state):
+            return ()
+        best = None
+        lower_bound = max(sum(value < 0 for value in state), sum(value > 0 for value in state))
+        seen = set()
+        for debtor, debt in enumerate(state):
+            if debt >= 0:
+                continue
+            for creditor, credit in enumerate(state):
+                if credit <= 0 or (debt, credit) in seen:
+                    continue
+                seen.add((debt, credit))
+                amount = min(-debt, credit)
+                remaining = list(state)
+                remaining[debtor] += amount
+                remaining[creditor] -= amount
+                candidate = ((users[debtor], users[creditor], amount),) + solve(tuple(remaining))
+                if best is None or len(candidate) < len(best):
+                    best = candidate
+                if len(best) == lower_bound:
+                    return best
+        return best
+
+    return list(solve(tuple(net_balances[user] for user in users)))
+
+
+def suggested_settlements(actor, *, group_id):
+    from apps.groups.services import require_member
+
+    require_member(group_id, actor)
+    nets = defaultdict(int)
+    names = {}
+    for row in Balance.objects.filter(group_id=group_id).select_related("user_a", "user_b").order_by("user_a_id", "user_b_id"):
+        nets[row.user_a_id] += row.net_paise
+        nets[row.user_b_id] -= row.net_paise
+        names[row.user_a_id] = row.user_a.username
+        names[row.user_b_id] = row.user_b.username
+    return [{"payer": debtor, "payer_username": names[debtor], "receiver": creditor,
+             "receiver_username": names[creditor], "amount": rupee_value(amount)}
+            for debtor, creditor, amount in minimum_transfers(nets)]
+
+
 def apply_debt(group_id, debtor_id, creditor_id, amount_paise):
     """Internal write primitive: caller must hold the group row lock."""
     if not connection.in_atomic_block:

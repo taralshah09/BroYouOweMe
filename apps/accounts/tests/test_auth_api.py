@@ -12,7 +12,7 @@ class ApiTests(TestCase):
         return self.client.post(path, json.dumps(data), content_type="application/json")
 
     def signup(self, username="Mohit", email="mohit@example.com"):
-        return self.post("/users", {"username": username, "email": email, "password": "a-good-password-123"})
+        return self.post("/signup", {"username": username, "email": email, "password": "a-good-password-123"})
 
     def test_signup_hashes_password_and_starts_session(self):
         response = self.signup()
@@ -20,8 +20,7 @@ class ApiTests(TestCase):
         user = User.objects.get()
         self.assertTrue(user.check_password("a-good-password-123"))
         self.assertEqual(int(self.client.session["_auth_user_id"]), user.id)
-        self.assertEqual(self.client.get("/users").json(), [{"id": user.id, "username": "Mohit"}])
-        self.assertNotIn("email", self.client.get("/users").json()[0])
+        self.assertEqual(self.client.get("/users").status_code, 404)
 
     def test_case_insensitive_uniqueness_and_validation(self):
         self.assertEqual(self.signup().status_code, 201)
@@ -77,7 +76,7 @@ class ApiTests(TestCase):
         self.assertEqual(self.post("/expenses", {"participants": [mohit_id]}).status_code, 400)
 
     def test_auth_membership_and_admin_checks(self):
-        for path in ["/users", "/groups", "/groups/1/members", "/groups/1/expenses", "/groups/1/balances", "/balances", "/expenses/1"]:
+        for path in ["/groups", "/groups/1/members", "/groups/1/expenses", "/groups/1/balances", "/balances", "/expenses/1"]:
             self.assertEqual(self.client.get(path).status_code, 401)
         self.signup()
         group_id = self.post("/groups", {"name": "Private"}).json()["id"]
@@ -105,7 +104,7 @@ class ApiTests(TestCase):
         group_id = self.client.get("/groups").json()[0]["id"]
         self.client.post("/expenses", {"group_id": group_id, "paid_by": User.objects.get().id, "amount": "5.00", "description": "Tea"}, HTTP_ACCEPT="text/html")
         expense_id = self.client.get(f"/groups/{group_id}/expenses").json()[0]["id"]
-        for path in ["/groups", "/users", "/balances", f"/groups/{group_id}", f"/groups/{group_id}/members", f"/groups/{group_id}/expenses", f"/groups/{group_id}/balances", f"/expenses/{expense_id}"]:
+        for path in ["/groups", "/balances", f"/groups/{group_id}", f"/groups/{group_id}/members", f"/groups/{group_id}/expenses", f"/groups/{group_id}/balances", f"/expenses/{expense_id}"]:
             self.assertEqual(self.client.get(path, HTTP_ACCEPT="text/html").status_code, 200, path)
 
     def test_csrf_is_required_for_json_and_html(self):

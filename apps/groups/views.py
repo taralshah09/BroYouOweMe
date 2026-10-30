@@ -1,4 +1,4 @@
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 
 from apps.accounts.http import endpoint, payload, positive_id, wants_html
@@ -8,7 +8,7 @@ from apps.expenses.views import expense_data
 from apps.settlements.services import balances_for
 from .forms import GroupForm, MemberForm
 from .models import Group
-from .services import add_member, create_group, require_member
+from .services import add_member, add_member_by_username, create_group, require_member
 
 
 def group_data(group):
@@ -48,8 +48,11 @@ def group_detail(request, group_id):
 def members(request, group_id):
     group = require_member(group_id, request.user)
     if request.method == "POST":
-        data = payload(request, ["user_id"])
-        member = add_member(group_id=group_id, actor=request.user, user_id=positive_id(data.get("user_id")))
+        data = payload(request, ["user_id", "username"])
+        if "username" in data:
+            member = add_member_by_username(group_id=group_id, actor=request.user, username=data["username"])
+        else:
+            member = add_member(group_id=group_id, actor=request.user, user_id=positive_id(data.get("user_id")))
         if wants_html(request):
             return redirect("group-detail", group_id=group.id)
         return JsonResponse({"user_id": member.user_id, "username": member.user.username, "role": member.role}, status=201)
@@ -57,3 +60,81 @@ def members(request, group_id):
     if wants_html(request):
         return render(request, "groups/members.html", {"group": group, "members": rows})
     return JsonResponse([{"user_id": row.user_id, "username": row.user.username, "role": row.role} for row in rows], safe=False)
+
+
+def invite_data(request, invite):
+    from django.urls import reverse
+    from django.utils import timezone
+
+    return {"id": invite.id, "url": request.build_absolute_uri(reverse("invite-preview", args=[invite.token])),
+            "qr_url": reverse("invite-qr", args=[invite.group_id, invite.pk]),
+            "active": invite.revoked_at is None and invite.expires_at > timezone.now(),
+            "expires_at": invite.expires_at.isoformat(),
+            "revoked_at": invite.revoked_at.isoformat() if invite.revoked_at else None}
+
+
+@endpoint(["GET", "POST"])
+def invites(request, group_id):
+    from .services import create_invite
+
+    group = require_member(group_id, request.user, admin=True)
+    if request.method == "POST":
+        payload(request, [])
+        invite = create_invite(group_id=group_id, actor=request.user)
+        if not wants_html(request):
+            return JsonResponse(invite_data(request, invite), status=201)
+        return redirect("invites", group_id=group_id)
+    rows = [invite_data(request, row) for row in group.invites.order_by("-id")]
+    if wants_html(request):
+        return render(request, "groups/invites.html", {"group": group, "invites": rows})
+    return JsonResponse(rows, safe=False)
+
+
+@endpoint(["POST", "DELETE"])
+def invite_revoke(request, group_id, invite_id):
+    from .services import revoke_invite
+
+    payload(request, [])
+    row = revoke_invite(group_id=group_id, invite_id=invite_id, actor=request.user)
+    return redirect("invites", group_id=group_id) if wants_html(request) else JsonResponse(invite_data(request, row))
+
+
+@endpoint(["GET"])
+def invite_qr(request, group_id, invite_id):
+    from django.shortcuts import get_object_or_404
+    import qrcode
+    from qrcode.image.svg import SvgPathFillImage
+    from .services import valid_invite
+
+    group = require_member(group_id, request.user, admin=True)
+    row = get_object_or_404(group.invites, pk=invite_id)
+    valid_invite(row.token)
+    svg = qrcode.make(invite_data(request, row)["url"], image_factory=SvgPathFillImage).to_string()
+    response = HttpResponse(svg, content_type="image/svg+xml")
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+@endpoint(["GET"], public=True)
+def invite_preview(request, token):
+    from .services import valid_invite
+
+    row = valid_invite(token)
+    data = {"group_name": row.group.name, "member_count": row.group.memberships.filter(left_at__isnull=True).count()}
+    response = render(request, "groups/invite.html", {**data, "token": token}) if wants_html(request) else JsonResponse(data)
+    response["Referrer-Policy"] = "no-referrer"
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+@endpoint(["POST"], public=True)
+def invite_join(request, token):
+    from .services import join_invite, valid_invite
+
+    payload(request, [])
+    valid_invite(token)
+    if not request.user.is_authenticated:
+        request.session["pending_invite"] = token
+        return redirect("signup") if wants_html(request) else JsonResponse({"signup_required": True}, status=401)
+    membership = join_invite(token=token, actor=request.user)
+    return redirect("group-detail", group_id=membership.group_id) if wants_html(request) else JsonResponse({"group_id": membership.group_id})

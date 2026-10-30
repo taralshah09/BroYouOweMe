@@ -6,7 +6,6 @@ from django.views.decorators.http import require_GET
 
 from .forms import LoginForm, SignupForm
 from .http import endpoint, payload, wants_html
-from .models import User
 
 from .services import check_database, register_user
 
@@ -29,6 +28,20 @@ def user_data(user):
     return {"id": user.id, "username": user.username}
 
 
+def complete_invite(request, user):
+    from django.http import Http404
+    from django.contrib import messages
+    from apps.groups.services import join_invite
+
+    token = request.session.pop("pending_invite", None)
+    if token:
+        try:
+            return join_invite(token=token, actor=user).group_id
+        except Http404:
+            messages.info(request, "Your invite is no longer available. Ask the group admin for a new link.")
+    return None
+
+
 def home(request):
     return render(request, "home.html")
 
@@ -45,9 +58,10 @@ def signup(request):
     if form.is_valid():
         user = register_user(form)
         session_login(request, user, backend="apps.accounts.backends.IdentityBackend")
+        group_id = complete_invite(request, user)
         if wants_html(request):
-            return redirect("groups")
-        return JsonResponse(user_data(user), status=201)
+            return redirect("group-detail", group_id=group_id) if group_id else redirect("groups")
+        return JsonResponse({**user_data(user), **({"group_id": group_id} if group_id else {})}, status=201)
     if wants_html(request):
         return render(request, "accounts/auth.html", {"form": form, "heading": "Create your account"}, status=400)
     return JsonResponse({"errors": form.errors}, status=400)
@@ -59,9 +73,10 @@ def login(request):
     form = LoginForm(request, data=data)
     if request.method == "POST" and form.is_valid():
         session_login(request, form.get_user())
+        group_id = complete_invite(request, form.get_user())
         if wants_html(request):
-            return redirect("groups")
-        return JsonResponse(user_data(form.get_user()))
+            return redirect("group-detail", group_id=group_id) if group_id else redirect("groups")
+        return JsonResponse({**user_data(form.get_user()), **({"group_id": group_id} if group_id else {})})
     if request.method == "GET" or wants_html(request):
         return render(request, "accounts/auth.html", {"form": form, "heading": "Welcome back"}, status=400 if data is not None else 200)
     return JsonResponse({"errors": form.errors}, status=400)
@@ -71,15 +86,3 @@ def login(request):
 def logout(request):
     session_logout(request)
     return redirect("home") if wants_html(request) else JsonResponse({"status": "ok"})
-
-
-@endpoint(["GET", "POST"], public=True)
-def users(request):
-    if request.method == "POST":
-        return signup(request)
-    if not request.user.is_authenticated:
-        return redirect("login") if wants_html(request) else JsonResponse({"error": "Login required."}, status=401)
-    users = User.objects.filter(is_active=True).order_by("id")
-    if wants_html(request):
-        return render(request, "accounts/users.html", {"users": users})
-    return JsonResponse([user_data(user) for user in users], safe=False)

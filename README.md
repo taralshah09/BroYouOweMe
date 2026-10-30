@@ -1,7 +1,7 @@
 # BroYouOweMe
 
 An INR expense-sharing service built with Django server-rendered templates,
-plain CSS/JavaScript, and PostgreSQL on Neon. Phase 2 includes session auth, groups, equal/subset/unequal expenses, creator-only
+plain CSS/JavaScript, and PostgreSQL on Neon. Phases 1?4 include private session auth, invite links/QR codes, minimum-transfer suggestions, groups, equal/subset/unequal expenses, creator-only
 edits and soft deletion, confirmed settlements, categories, and an activity feed.
 
 ## Local setup
@@ -91,7 +91,7 @@ and their input limits will be added in their planned phases.
 
 The schema and later work are documented in [docs/SCHEMA.md](docs/SCHEMA.md)
 and [docs/PLAN.md](docs/PLAN.md). Money is stored as integer paise, all domain
-IDs are bigint, and timestamps use UTC. OCR, voice, invites, insights, simplification, and production deployment remain
+IDs are bigint, and timestamps use UTC. OCR, voice, insights, and production deployment remain
 future work.
 
 Configuration references: [Django PostgreSQL documentation](https://docs.djangoproject.com/en/5.2/ref/databases/),
@@ -172,3 +172,33 @@ controlled by an admin. This prevents a guessed group ID from exposing a trip's
 expenses or letting an outsider add debts. Django sessions keep login simple for
 SSR pages and work with CSRF protection. The tradeoff is that every participant
 must register; email verification and guest participants are outside this plan.
+
+
+## Debt simplification and invites
+
+Suggested settlements aggregates net group balances and finds the exact minimum
+number of transfers in integer paise. The search exhausts a debtor or creditor at
+each match, memoizes residual states, prunes equivalent balances and stops early
+at the debtor/creditor count lower bound. Stable user-ID order makes ties deterministic.
+Cycles cancel naturally. Exact search has exponential worst-case cost and is intended
+for small shared-expense groups; greedy largest-first matching is faster but cannot
+guarantee the minimum. Suggestions are display only: claims still require real
+pairwise debts and no ledger entries are rewritten.
+
+Admins manage invite links and locally generated QR codes from the group page.
+Links last seven days, support multiple joins, and can be revoked. A visitor accepts
+the link, signs up or logs in, and joins automatically. Preview exposes only group
+name and member count. Expired/revoked links never grant membership.
+
+The People page and `/users` API, including the signup alias, are removed for privacy.
+Register through `/signup`; admins add friends by exact username or share an invite.
+
+## Dummy data
+
+Run `python manage.py seed_demo` after migrations. It creates `demo_mohit`,
+`demo_rahul`, `demo_ankit`, `demo_priya`, and `demo_sneha`, plus Demo Goa Trip with
+three sample expenses. Accounts use reserved `example.invalid` addresses and unusable
+passwords, so cannot log in. Add these exact usernames to a group you own to try splits.
+Use a separate normal account to test login. The seed is atomic and repeatable,
+never overwrites identities or passwords, and aborts on collisions. Sample ledger
+writes go through normal services.

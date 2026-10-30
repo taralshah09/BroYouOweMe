@@ -1,6 +1,5 @@
 from django import forms
 
-from apps.accounts.models import User
 from .models import Group
 
 
@@ -11,4 +10,4 @@ class GroupForm(forms.ModelForm):
 
 
 class MemberForm(forms.Form):
-    user_id = forms.ModelChoiceField(label="User", queryset=User.objects.filter(is_active=True).order_by("username"))
+    username = forms.CharField(label="Friend's exact username", max_length=32)

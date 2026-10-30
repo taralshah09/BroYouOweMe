@@ -10,6 +10,17 @@ from .services import balances_for, create_settlement, resolve_settlement, rupee
 
 
 @endpoint(["GET"])
+def simplified(request, group_id):
+    from .services import suggested_settlements
+
+    group = require_member(group_id, request.user)
+    transfers = suggested_settlements(request.user, group_id=group_id)
+    if wants_html(request):
+        return render(request, "settlements/simplified.html", {"group": group, "transfers": transfers})
+    return JsonResponse({"display_only": True, "transfers": transfers})
+
+
+@endpoint(["GET"])
 def balances(request, group_id=None):
     data = balances_for(request.user, group_id=group_id)
     if wants_html(request):

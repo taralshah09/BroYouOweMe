@@ -1,6 +1,6 @@
 # BroYouOweMe: Feature Definition and Phase Plan
 
-Status: Phases 0, 1, and 2 complete and validated. Phase 3 has not started.
+Status: Phases 0 through 4 implemented and validated.
 Source: `Assignment.pdf` (Decentro SDE Intern, Expense Sharing Service) plus extra requirements.
 
 ## Locked decisions
@@ -11,7 +11,7 @@ Source: `Assignment.pdf` (Decentro SDE Intern, Expense Sharing Service) plus ext
 | Frontend | Plain HTML, CSS, JS served by Django templates. No React. |
 | Database | PostgreSQL on Neon |
 | Auth | Django session auth. Signup with email and username (both unique); login with either. No email verification for now. |
-| API | SSR pages plus JSON endpoints matching the assignment (`/users`, `/groups`, `/groups/{id}/members`, `/expenses`, `/groups/{id}/expenses`, `/balances`) |
+| API | SSR pages plus JSON endpoints matching the assignment (`/signup`, `/groups`, `/groups/{id}/members`, `/expenses`, `/groups/{id}/expenses`, `/balances`) |
 | Money | INR only, stored as integer paise. Remainder paise are assigned deterministically so splits always sum to the total. |
 | Members | Registered users only. No guest placeholders. |
 | Voice transcription | Sarvam, transcription only. Five free accounts chained as fallbacks (each is the fallback for the previous one). Endpoints and limits to verify. |
@@ -53,7 +53,7 @@ Source: `Assignment.pdf` (Decentro SDE Intern, Expense Sharing Service) plus ext
 ## Feature list
 
 ### Assignment-mandatory
-1. Create and list users
+1. Create accounts through signup; global listing removed at owner request for privacy.
 2. Create groups
 3. Add users to a group and list members
 4. Add an expense (equal split among all group members; validation: amount > 0, valid group, payer does not owe themselves)
@@ -164,9 +164,23 @@ Completed and verified on 2026-10-30:
 - Exit: explanation of the algorithm and its tradeoffs ready for the README.
 
 ### Phase 4: Invites
-- Group invite link and QR (expiry and revocation rules to decide)
+- Group invite link and QR: seven-day multi-use links, admin revocation
 - Signup-then-auto-join flow
 - Exit: a new person joins a group from a link without admin action.
+
+Implemented on 2026-10-30 (phases 3 and 4):
+- Exact memoized minimum-transfer search, deterministic integer-paise output,
+  cycle cancellation, and a display-only SSR/JSON suggestions view.
+- Admin invite management, locally generated SVG QR, seven-day multi-use links,
+  revocation, minimal public preview, and CSRF-protected joins.
+- Explicit invite acceptance resumes after signup/login. Joining rechecks validity
+  under the group lock; existing memberships are idempotent.
+- Owner-requested privacy change: removed `/users`, its signup alias and People
+  navigation. Add-member UI uses an exact username, without a platform directory.
+- Atomic repeatable seed command creates five dummy accounts and sample expenses.
+- 78 tests pass locally and in Docker on disposable PostgreSQL; Django and migration consistency checks pass.
+- Invite migration applied to Neon; five dummy users and sample ledger seeded.
+  Balance integrity passes. Rebuilt local Docker app is healthy; `/users` returns 404.
 
 ### Phase 5: Receipt OCR
 - Image upload, preprocessing, Tesseract extraction of items, tax, total

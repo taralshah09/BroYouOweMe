@@ -37,3 +37,15 @@ class Membership(models.Model):
             models.CheckConstraint(condition=models.Q(role__in=["admin", "member"]), name="valid_member_role"),
         ]
         indexes = [models.Index(fields=["user"], condition=models.Q(left_at__isnull=True), name="active_members_user_idx")]
+
+
+class Invite(models.Model):
+    group = models.ForeignKey(Group, on_delete=models.PROTECT, related_name="invites")
+    token = models.CharField(max_length=64, unique=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "invites"

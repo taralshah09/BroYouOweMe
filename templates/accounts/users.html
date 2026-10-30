@@ -1,1 +1,0 @@
-{% extends "base.html" %}{% block content %}<p class="eyebrow">THE PEOPLE</p><h1>Better together.</h1><p>Registered usernames you can add to your groups.</p><section class="card"><ul class="rows">{% for person in users %}<li><strong>{{ person.username }}</strong><span>User #{{ person.id }}</span></li>{% empty %}<li>No users yet.</li>{% endfor %}</ul></section>{% endblock %}
