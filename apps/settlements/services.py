@@ -1,11 +1,13 @@
 from collections import defaultdict
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection, transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
+from django.http import Http404
+from django.utils import timezone
 
 from apps.expenses.services.money import validate_paise
-from .models import Balance
+from .models import Balance, Settlement
 
 
 def apply_debt(group_id, debtor_id, creditor_id, amount_paise):
@@ -76,13 +78,84 @@ def balance_mismatches(group_id=None):
     for group in groups.select_for_update():
         expected = defaultdict(int)
         for expense in Expense.objects.filter(group=group):
-            for user_id, share in equal_shares(expense).items():
+            shares = equal_shares(expense)
+            if sum(shares.values()) != expense.amount_paise or any(share <= 0 for share in shares.values()):
+                mismatches.append({"group_id": group.id, "expense_id": expense.id, "error": "Invalid split total or shares."})
+            for user_id, share in shares.items():
                 if user_id == expense.paid_by_id:
                     continue
                 user_a, user_b = sorted((user_id, expense.paid_by_id))
                 expected[(user_a, user_b)] += share if expense.paid_by_id == user_a else -share
+        for settlement in Settlement.objects.filter(group=group, status="confirmed"):
+            user_a, user_b = sorted((settlement.payer_id, settlement.receiver_id))
+            expected[(user_a, user_b)] -= settlement.amount_paise if settlement.receiver_id == user_a else -settlement.amount_paise
         actual = {(row.user_a_id, row.user_b_id): row.net_paise for row in Balance.objects.filter(group=group)}
         for pair in sorted(expected.keys() | actual.keys()):
             if expected.get(pair, 0) != actual.get(pair, 0):
                 mismatches.append({"group_id": group.id, "pair": pair, "expected": expected.get(pair, 0), "actual": actual.get(pair, 0)})
     return mismatches
+
+
+def settlement_snapshot(settlement):
+    return {"payer": settlement.payer_id, "receiver": settlement.receiver_id,
+            "amount_paise": settlement.amount_paise, "status": settlement.status,
+            "note": settlement.note,
+            "resolved_at": settlement.resolved_at.isoformat() if settlement.resolved_at else None}
+
+
+def check_available(settlement):
+    user_a, user_b = sorted((settlement.payer_id, settlement.receiver_id))
+    net = Balance.objects.filter(group_id=settlement.group_id, user_a_id=user_a, user_b_id=user_b).values_list("net_paise", flat=True).first() or 0
+    owed = net if settlement.receiver_id == user_a else -net
+    reserved = Settlement.objects.filter(group_id=settlement.group_id, payer_id=settlement.payer_id, receiver_id=settlement.receiver_id, status="pending").exclude(pk=settlement.pk).aggregate(total=Sum("amount_paise"))["total"] or 0
+    if settlement.amount_paise + reserved > owed:
+        raise ValidationError("The amount plus other pending payments exceeds the current pairwise debt.")
+
+
+@transaction.atomic
+def create_settlement(*, actor, group_id, receiver, amount, note=None):
+    from apps.activity.services import record
+    from apps.expenses.services import money
+    from apps.groups.services import require_member
+    from apps.groups.models import Membership
+
+    group = require_member(group_id, actor, lock=True)
+    if type(receiver) is not int or not Membership.objects.filter(group=group, user_id=receiver, left_at__isnull=True).exists():
+        raise ValidationError("The receiver must be an active group member.")
+    settlement = Settlement(group=group, payer=actor, receiver_id=receiver,
+                            amount_paise=money(amount), note=note)
+    settlement.full_clean()
+    check_available(settlement)
+    settlement.save()
+    record(group_id=group.id, actor=actor, action="settlement.claimed", entity=settlement, after=settlement_snapshot(settlement))
+    return settlement
+
+
+@transaction.atomic
+def resolve_settlement(*, actor, settlement_id, action):
+    from apps.activity.services import record
+    from apps.groups.services import require_member
+
+    try:
+        group_id = Settlement.objects.values_list("group_id", flat=True).get(pk=settlement_id)
+    except Settlement.DoesNotExist:
+        raise Http404 from None
+    require_member(group_id, actor, lock=True)
+    settlement = Settlement.objects.get(pk=settlement_id)
+    if action not in {"confirm", "reject", "cancel"}:
+        raise ValidationError("Unknown settlement action.")
+    expected_actor = settlement.payer_id if action == "cancel" else settlement.receiver_id
+    if actor.pk != expected_actor:
+        raise PermissionDenied("Only the payer can cancel; only the receiver can confirm or reject.")
+    if settlement.status != "pending":
+        raise ValidationError("This settlement has already been resolved.")
+    before = settlement_snapshot(settlement)
+    if action == "confirm":
+        check_available(settlement)
+        apply_debt(group_id, settlement.payer_id, settlement.receiver_id, -settlement.amount_paise)
+    settlement.status = {"confirm": "confirmed", "reject": "rejected", "cancel": "cancelled"}[action]
+    settlement.resolved_at = timezone.now()
+    settlement.save(update_fields=["status", "resolved_at"])
+    record(group_id=group_id, actor=actor, action="settlement." + settlement.status, entity=settlement,
+           before=before, after=settlement_snapshot(settlement))
+    return settlement

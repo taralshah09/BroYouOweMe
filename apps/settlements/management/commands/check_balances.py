@@ -4,7 +4,7 @@ from apps.settlements.services import balance_mismatches
 
 
 class Command(BaseCommand):
-    help = "Recompute Phase 1 equal-split expenses and verify maintained balances."
+    help = "Verify expense allocations and recompute expenses plus confirmed settlements."
 
     def handle(self, *args, **options):
         mismatches = balance_mismatches()

@@ -1,8 +1,8 @@
 # BroYouOweMe
 
 An INR expense-sharing service built with Django server-rendered templates,
-plain CSS/JavaScript, and PostgreSQL on Neon. Phase 1 includes session auth,
-groups, equal-split expenses, and maintained pairwise balances.
+plain CSS/JavaScript, and PostgreSQL on Neon. Phase 2 includes session auth, groups, equal/subset/unequal expenses, creator-only
+edits and soft deletion, confirmed settlements, categories, and an activity feed.
 
 ## Local setup
 
@@ -91,43 +91,56 @@ and their input limits will be added in their planned phases.
 
 The schema and later work are documented in [docs/SCHEMA.md](docs/SCHEMA.md)
 and [docs/PLAN.md](docs/PLAN.md). Money is stored as integer paise, all domain
-IDs are bigint, and timestamps use UTC. Split rows, settlements, categories,
-OCR, voice, invites, insights, and production deployment remain future work.
+IDs are bigint, and timestamps use UTC. OCR, voice, invites, insights, simplification, and production deployment remain
+future work.
 
 Configuration references: [Django PostgreSQL documentation](https://docs.djangoproject.com/en/5.2/ref/databases/),
 [custom user migration guidance](https://docs.djangoproject.com/en/5.2/topics/auth/customizing/#changing-to-a-custom-user-model-mid-project),
 and [WhiteNoise setup](https://whitenoise.readthedocs.io/en/stable/django.html).
 
 
-## Phase 1 behavior
+## Phase 2 behavior
 
 Open `/signup` to create an account. Create a group at `/groups`, add registered
-users as its admin, and record an expense from the group page. All current
-members share it equally, including the payer. Only other members create debts.
-Any active member may record a payment made by another active member.
+users as its admin, and record an expense from the group page. Choose equal shares
+among all members or a subset, or enter exact amounts per participant. The payer
+may be any active member and need not be a participant. Every share is positive
+and stored as integer paise; shares always sum to the total. Remainder paise go to
+ascending user IDs. Adding members never changes historical splits.
 
-Membership additions and expense creation both lock the group row. Phase 1
-membership is append-only: the members whose `joined_at` precedes an expense's
-`created_at` are its participants. Adding a friend later never changes earlier
-expenses, even when an expense is backdated. Phase 2 replaces this calculation
-with explicit split rows before expense edits or membership changes are enabled.
-Amounts below one paisa per participant are rejected so every share is positive.
+The expense creator can edit or delete from its detail page. Edits reverse old
+allocations and apply new ones atomically; deletion keeps an audit record and
+reverses the expense's debts. Pending and confirmed settlements remain in history.
+A correction after settlement may reverse who owes whom.
 
-The balances table stores one signed value per unordered user pair per group.
-Opposite debts net automatically; unrelated pairs are not simplified. Expense
-and balance writes commit together or roll back together. Run
-`python manage.py check_balances` to recompute expense history under group locks
-and detect drift without changing any balances.
+Use **Settle up** to claim a partial or full payment toward a real pairwise debt.
+Only the receiver can confirm or reject, and the payer can cancel a pending claim.
+Balances change on confirmation only. Pending claims reserve the current debt;
+overpayment is checked both when claimed and when confirmed, under the group lock.
 
-`/balances` combines only the logged-in user's pairs across their active groups.
-`/groups/{id}/balances` shows every nonzero pair in a group they belong to.
-All group reads check active membership; adding members requires the admin role.
-User listings expose IDs and usernames, never emails or password hashes.
-Usernames are at most 32 characters; `@` is reserved for email login.
+Any member can manage group categories. The seven built-in categories are shared
+and immutable; custom names are unique within their group and cannot duplicate
+default names. Used categories can be renamed but cannot be deleted, even when
+only a soft-deleted expense uses them. Expenses also accept an optional tag.
 
-See [API documentation](docs/API.md) for endpoints, CSRF, and exact money formats.
-The future schema is documented in [SCHEMA.md](docs/SCHEMA.md); categories,
-settlements, edits, deletions, invites, OCR, and voice remain later-phase work.
+The group dashboard links to **Activity**, a paginated feed with before/after
+expense changes, settlement transitions, and category changes. Audit events and
+ledger writes commit or roll back together. All group reads require membership.
+
+Balances store one signed value per unordered user pair per group. Opposite debts
+net automatically; unrelated pairs are not simplified. `/balances` combines only
+the logged-in user's pairs across active groups. Run `python manage.py check_balances`
+to verify split totals and recompute active expenses minus confirmed settlements
+under group locks without changing maintained balances.
+
+For an existing Phase 1 database, stop old workers, run `python manage.py migrate`,
+and start the Phase 2 app. The data migration uses original membership join times
+to preserve historical equal splits, creates matching historical activity events,
+and leaves balances intact. The transition is intentionally irreversible; old
+workers must not write expenses after migration.
+
+See [API documentation](docs/API.md) for endpoints, CSRF, split payloads, filtering,
+and exact money formats, and [SCHEMA.md](docs/SCHEMA.md) for ledger invariants.
 
 ## Testing against disposable PostgreSQL
 
@@ -145,9 +158,10 @@ docker stop byom-tests
 ```
 
 Wait until `pg_isready` reports accepting connections before running tests.
-The suite covers the exact Mohit/Rahul/Ankit dinner example, integer rounding,
-netting, rollback after a partial balance update, concurrent creation, historical
-membership, input validation, database constraints, auth, CSRF, and SSR routes.
+The suite covers the exact assignment scenario, deterministic allocation,
+unequal/subset splits, edit/delete rollback and audit snapshots, category scope,
+settlement reservations and confirmation, concurrent creation/claims/confirmations,
+historical split migration, integrity drift, auth, CSRF, and SSR workflows.
 
 
 ## Product enhancement: private, authenticated groups

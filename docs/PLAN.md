@@ -1,6 +1,6 @@
 # BroYouOweMe: Feature Definition and Phase Plan
 
-Status: Phases 0 and 1 complete and validated. Phase 2 has not started.
+Status: Phases 0, 1, and 2 complete and validated. Phase 3 has not started.
 Source: `Assignment.pdf` (Decentro SDE Intern, Expense Sharing Service) plus extra requirements.
 
 ## Locked decisions
@@ -133,6 +133,29 @@ Completed and verified on 2026-10-30:
 - Activity feed
 - Categories: seeded defaults, per-group custom categories (any member manages; rename allowed; delete blocked once in use), free-text tag, and category on expenses
 - Exit: every balance can be traced to events, and editing an expense updates balances correctly.
+
+Completed and verified on 2026-10-30:
+- Explicit positive per-user shares for equal, subset, and exact unequal splits;
+  atomic migration preserves Phase 1 historical participants and balances.
+- Creator-only expense edits and soft deletion, with allocation reversal and
+  before/after activity snapshots committed in the same transaction.
+- Partial settlement claims, receiver confirmation/rejection, payer cancellation,
+  pending-debt reservation, and confirmation-time overpayment checks under locks.
+- Seven seeded defaults, member-managed custom categories, protected historical
+  use, optional tags, and expense category/date/search filters.
+- Paginated activity JSON and SSR feed, split-aware browser forms, expense editing,
+  category management, and settlement screens.
+- Integrity command verifies explicit share totals and recomputes expenses plus
+  confirmed settlements. No balance drift after the configured Neon migration.
+- 60 tests pass locally and in Docker, including migration backfill, rollback,
+  creator permissions, malformed inputs, category scope, and concurrent claims
+  and confirmations. Django checks and migration consistency checks pass.
+- Browser unequal creation/editing and payment claim/confirmation verified on
+  disposable PostgreSQL; desktop/mobile screenshots inspected, no horizontal
+  overflow or JavaScript errors. Docker `/health` returns 200 against Neon.
+- Phase 2 migrations applied to Neon and the local Docker app rebuilt/restarted.
+  The data transition is intentionally irreversible; stop Phase 1 workers before
+  migration because they cannot create explicit splits.
 
 ### Phase 3: Debt simplification
 - Minimum-transfer algorithm over net balances

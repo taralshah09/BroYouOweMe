@@ -1,4 +1,4 @@
-# Phase 1 API
+# API (through Phase 2)
 
 All paths omit trailing slashes. Requests may be JSON objects or HTML form
 submissions. GET defaults to JSON; send `Accept: text/html` for SSR pages.
@@ -50,16 +50,20 @@ users can be added. No removal, deletion, or role-changing routes exist yet.
 ```
 
 `expense_date` is optional (`YYYY-MM-DD`, defaults to today; backdating allowed).
-All current members participate. Every member's share must be positive, so the
-amount must cover at least one paisa per member. The payer and creator must be
-active members. Description is required, up to 200 characters. Unsupported
-fields, including custom participants, splits, items, and AI source, return 400.
+All current members participate by default. Optional `participants` is a nonempty
+list of unique active member IDs for an equal subset. Every share must be positive,
+so the amount must cover at least one paisa per participant. The payer and creator must be
+active members. Description is required, up to 200 characters. Optional fields include `category` (category ID or null), `tag` (up to 40 characters),
+`split_mode` (`equal` or `unequal`), and `splits` (below). Unsupported fields,
+including receipt items and AI source, return 400.
 
 Returns 201 with `id`, `group_id`, `created_by`, `description`, `amount`,
 `paid_by` (username), `paid_by_id`, and `expense_date`.
 `GET /groups/{id}/expenses` lists those objects, newest creation first.
 `GET /expenses/{id}` also includes `splits` with `user_id`, `username`, and `amount`.
-These shares are calculated from membership at creation time in Phase 1.
+Shares are stored in explicit split rows. Responses also contain `split_mode`,
+`category` (ID or null), and `tag`. List filters: `category`, `date_from`, `date_to`
+(inclusive YYYY-MM-DD), and `search` (description or tag).
 
 Money inputs are rupees: integer, exact JSON decimal, or string with up to two
 decimal places. No exponent, excess precision, nonfinite number, or negative/zero
@@ -80,7 +84,85 @@ Mohit/Rahul/Ankit Dinner 1200 scenario returns:
 The payer's share never becomes a debt to themselves. Opposite debts net within
 each pair. `GET /balances` combines the caller's pairs across active groups;
 it does not expose pairs between other people. Both return `{}` when settled.
-No settlement or simplification routes exist in Phase 1.
+Settlements are available below; simplification arrives in Phase 3.
 
 `GET /health` returns 200 `{"status":"ok"}` or 503
 `{"status":"unavailable"}` based on a database query.
+
+## Editing and unequal splits
+
+For exact allocations, supply `splits` as rupee amounts:
+
+```json
+{"group_id":1,"paid_by":1,"amount":"1200.01","description":"Dinner",
+ "splits":[{"user_id":1,"amount":"400.00"},{"user_id":2,"amount":"800.01"}]}
+```
+
+Omitting `split_mode` infers unequal when `splits` is supplied, otherwise equal.
+Each split requires exactly `user_id` and `amount`. IDs must be unique active
+members; amounts must be positive and sum exactly to the total. If supplied,
+`participants` must match the split users. Equal mode accepts `participants`
+and rejects explicit splits. The payer need not be a participant.
+
+`PATCH /expenses/{id}` accepts any subset of the create fields except `group_id`.
+Only the creator, while still a group member, may edit or delete. With no split
+fields, equal edits preserve the original participants and recompute shares;
+unequal edits preserve the exact amounts (a changed total must still match).
+Supplying split fields replaces the allocation. `category: null` clears the category.
+Edits atomically reverse old debts, apply new ones, and append before/after audit
+snapshots. `DELETE /expenses/{id}` soft-deletes and reverses debts; returns
+`{"deleted":true}`. Deleted rows are excluded from reads. Both operations can
+reverse a debt's direction after previously confirmed payments.
+
+Browser forms use `POST /expenses/{id}` to edit and
+`POST /expenses/{id}/delete` to delete, with the same permissions and CSRF checks.
+
+## Categories
+
+`GET /groups/{id}/categories` returns default and group categories as
+`{"id":1,"name":"Food","group_id":null}` objects. Built-in defaults are Food,
+Travel, Stay, Shopping, Entertainment, Utilities, and Other.
+
+Any member can `POST /groups/{id}/categories` with `{"name":"Booze"}` (201),
+`PATCH /groups/{id}/categories/{category_id}` with a new name (200), or
+`DELETE` an unused custom category (200, `{"deleted":true}`). Default names
+and group names are case-insensitively unique within their applicable scope.
+Defaults cannot be changed. Cross-group assignments are rejected. Used categories
+can be renamed but never deleted, including use by soft-deleted expenses.
+Browser forms use POST on the category URL to rename or `action=delete` to delete.
+
+## Settlements
+
+`POST /settlements` with `{"group_id":1,"receiver":1,"amount":"100.01","note":"Cash"}`
+creates a pending claim (201). The authenticated user is always the payer.
+The receiver must be another active member with a real pairwise debt owed by
+the payer. A claim plus other pending claims for this direction cannot exceed
+the current debt. Partial payments, from one paisa, are allowed. Note is optional,
+up to 200 characters. Pending claims do not change balances.
+
+`GET /groups/{id}/settlements` returns newest-first claims. Objects contain `id`,
+`group_id`, `payer`, `receiver` (IDs), `payer_username`, `receiver_username`,
+`amount` (rupees), `status`, `note`, `created_at`, and `resolved_at` (null if pending).
+
+POST an empty object to `/settlements/{id}/confirm` or `/reject` as the receiver,
+or `/cancel` as the payer. Only pending claims can be resolved. Confirmation
+rechecks the amount plus other pending claims against the current debt while
+holding the group lock, then reduces that debt atomically. Rejection/cancellation
+releases the reservation without changing balances. A resolved claim cannot be
+replayed; stale or excessive claims return 400. Edits can invalidate pending
+claims; cancel or reject them to release reservations.
+
+## Activity and integrity
+
+`GET /groups/{id}/activity?page=1` returns `page`, `pages`, and `results`, 25 per page,
+newest first. Each event includes `id`, `actor` (username), `action`, `entity_type`,
+`entity_id`, `before`, `after`, and `created_at`. Expense and settlement snapshot
+amounts are explicitly named `amount_paise`/`share_paise` and use integer paise;
+regular endpoint amounts continue to use rupees. Events are appended in the same
+transaction as the operation and have no mutation endpoints. Category operations
+are also logged. The browser feed formats snapshots as rupees and usernames.
+
+The migration materializes Phase 1 participants using membership join times,
+retains existing balances, and seeds creation events at original expense creation
+times. `python manage.py check_balances` verifies stored share totals and recomputes
+all active expense debts minus confirmed settlements under group locks.

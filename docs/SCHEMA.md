@@ -1,20 +1,22 @@
 # BroYouOweMe: Database Schema and API Design
 
-Status: Phase 1 core schema implemented; later-phase tables remain planned. Built from the decisions in `PLAN.md`.
+Status: Phase 2 ledger schema implemented; later-phase tables remain planned. Built from the decisions in `PLAN.md`.
 Anything marked **DECISION NEEDED** is not settled and must not be implemented until answered.
 
-## Phase 1 implementation boundary
+## Implementation boundary (through Phase 2)
 
-This document describes the complete target schema. Phase 1 implements `users`,
-`groups`, `group_members`, the core `expenses` columns, and `balances` only.
-Categories, tags, split rows, items, settlements, invites, and activity arrive
-in their planned phases. Expense mode/source are constrained to `equal`/`manual`.
-Group and expense queries exclude soft-deleted rows, but no deletion endpoint is
-available yet. Membership is append-only in this phase. An expense's implicit
-participants are memberships with `joined_at <= expense.created_at`, so later
-joins and backdated expense dates cannot alter historical allocations. Phase 2
-must materialize those shares before enabling edits or membership removal/rejoin.
-Balance integrity recomputes these implicit shares until that transition.
+Implemented: users, groups, memberships, manual expenses with categories and tags,
+explicit per-user splits, maintained balances, settlements, and activity. Expense
+split modes are `equal` and `unequal`; `itemised` and nonmanual sources arrive in
+their planned phases. Receipt items, invites, membership removal/role changes,
+and group deletion remain future work.
+
+Migration `expenses.0003` materializes existing equal shares from membership join
+times (not expense dates), seeds the seven defaults, and creates historical
+expense events. It does not rewrite balances. It is intentionally irreversible
+because later explicit allocations cannot be represented by the Phase 1 ledger.
+Stop old application workers before migration and start only Phase 2 workers after
+it; old code does not create the now-required split rows.
 
 ## 1. Conventions
 
