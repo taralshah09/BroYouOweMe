@@ -91,6 +91,30 @@ def rupee_value(paise):
     return whole if fraction == 0 else f"{whole}.{fraction:02d}"
 
 
+def overview_for(actor, *, group_id=None):
+    """Presentation totals from the caller's current, netted pairwise debts."""
+    from apps.expenses.services.money import paise_to_rupees, rupees_to_paise
+
+    balances = balances_for(actor, group_id=group_id)
+    owed = owes = 0
+    for debtor, position in balances.items():
+        for creditor, amount in position["owes"].items():
+            if debtor == actor.username:
+                owes += rupees_to_paise(amount)
+            if creditor == actor.username:
+                owed += rupees_to_paise(amount)
+    pending = Settlement.objects.filter(
+        group__memberships__user=actor, group__memberships__left_at__isnull=True,
+        group__deleted_at__isnull=True, receiver=actor, status="pending",
+    ).select_related("group").order_by("id")
+    if group_id is not None:
+        pending = pending.filter(group_id=group_id)
+    first = pending.first()
+    return {"net": paise_to_rupees(abs(owed - owes)), "negative": owes > owed,
+            "owed": paise_to_rupees(owed), "owes": paise_to_rupees(owes),
+            "pending_count": pending.count(), "pending_group": first.group_id if first else None}
+
+
 def balances_for(actor, *, group_id=None):
     from apps.groups.services import require_member
 

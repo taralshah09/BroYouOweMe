@@ -8,7 +8,7 @@ Anything marked **DECISION NEEDED** is not settled and must not be implemented u
 Implemented: users, groups, memberships, manual expenses with categories and tags,
 explicit per-user splits, maintained balances, settlements, invites, and activity. Expense split modes are `equal`, `unequal` and `itemised`. Phase 5 adds `source=ocr`,
 receipt items and item payees. Phase 6 adds stateless voice drafts and source=voice. Membership removal/role changes and group
-deletion remain future work. Receipt drafts are stateless and never persisted.
+deletion are implemented by the group lifecycle follow-up. Receipt drafts are stateless and never persisted.
 Item payees use a surrogate bigint primary key plus UNIQUE(item_id, user_id),
 consistent with the existing Django models.
 
@@ -80,6 +80,7 @@ There is no separate display name (decided): the username is the source of truth
 - Invariant, enforced in the service layer inside a transaction that locks the group row: a group always has at least one active admin. An admin cannot leave or be demoted if they are the last admin, and must promote someone first (no auto-promotion).
 - Invariant: a member can leave only if all their balances in the group are zero.
 - Admins can remove other members, including other admins (decided). Removal needs the member's balances in the group to be zero, like leaving. The last-admin invariant still holds.
+- Expense edits/deletion must not recreate nonzero pairwise balances for departed members; the complete transaction rolls back if they do (owner decision, 2026-10-31).
 
 ### categories
 Categories can be group-specific (e.g. "Booze" on the Goa Trip group exists only there). Default categories are shared by all groups.

@@ -1,8 +1,8 @@
 {% extends "base.html" %}{% load static %}{% block content %}
-<a href="/groups/{{ expense.group_id }}">&larr; Back to group</a><h1>{{ expense.description }}</h1>
-<section class="card"><p class="eyebrow">{{ expense.expense_date }} / {{ expense.split_mode }}</p><h2>INR {{ expense.amount }}</h2><p>Paid by {{ expense.paid_by }}{% if expense.tag %} &middot; {{ expense.tag }}{% endif %}</p>
+<a class="back-link" href="/groups/{{ expense.group_id }}">{% include "icon.html" with name="back" %}{{ group.name }}</a><div class="detail-heading"><span class="group-tile">{% include "icon.html" with name="receipt" %}</span><h1>{{ expense.description }}</h1><strong class="money detail-amount">&#8377;{{ expense.amount }}</strong><p>Paid by {{ expense.paid_by }} &middot; {{ expense.expense_date }}</p></div><div class="detail-layout"><div>
+<section class="card"><p class="eyebrow">{{ expense.expense_date }} / {{ expense.split_mode }}</p><p>Paid by {{ expense.paid_by }}{% if expense.tag %} &middot; {{ expense.tag }}{% endif %}</p>
 <h3>Shares</h3><ul class="rows">{% for split in expense.splits %}<li><span>{{ split.username }}</span><strong>INR {{ split.amount }}</strong></li>{% endfor %}</ul></section>
 {% if expense.items %}<section class="card"><h2>Receipt items</h2><ul class="rows">{% for item in expense.items %}<li><span>{{ item.name }} ({{ item.kind }})</span><strong>INR {{ item.amount }}</strong></li>{% endfor %}</ul></section>{% endif %}
-{% if can_edit %}<section class="card"><h2>Edit expense</h2>{% if expense.source == "ocr" %}<p><a href="/groups/{{ expense.group_id }}/receipts?expense={{ expense.id }}">Review and edit receipt</a></p>{% else %}<form method="post">{% csrf_token %}{{ form.as_p }}<button>Save changes</button></form>{% endif %}
+</div>{% if can_edit %}<section class="card composer"><h2>Edit expense</h2>{% if expense.source == "ocr" %}<p><a href="/groups/{{ expense.group_id }}/receipts?expense={{ expense.id }}">Review and edit receipt</a></p>{% else %}<form method="post" class="expense-form">{% csrf_token %}{% include "expenses/form.html" %}<button>Save changes</button></form>{% endif %}
 <details><summary>Delete expense</summary><p>This reverses its shares. The expense stays in the activity history.</p><form method="post" action="/expenses/{{ expense.id }}/delete">{% csrf_token %}<button class="secondary">Delete expense</button></form></details></section>{% endif %}
-<script src="{% static 'js/expenses.js' %}" defer></script>{% endblock %}
+</div><script src="{% static 'js/expenses.js' %}" defer></script>{% endblock %}

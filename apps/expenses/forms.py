@@ -13,12 +13,15 @@ class ExpenseForm(forms.Form):
     expense_date = forms.DateField(required=False, initial=timezone.localdate, widget=forms.DateInput(attrs={"type": "date"}))
 
     split_mode = forms.ChoiceField(required=False, choices=[("equal", "Equal"), ("unequal", "Exact amounts")])
-    participants = forms.ModelMultipleChoiceField(queryset=User.objects.none(), required=False, help_text="Equal splits: choose participants, or leave blank for all members.")
+    participants = forms.ModelMultipleChoiceField(queryset=User.objects.none(), required=False, widget=forms.CheckboxSelectMultiple,
+                                                help_text="Equal splits: choose participants, or leave blank for all members.")
     category = forms.ModelChoiceField(queryset=Category.objects.none(), required=False)
     tag = forms.CharField(max_length=40, required=False)
 
     def __init__(self, *args, group, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["amount"].widget.attrs.update({"inputmode": "decimal", "placeholder": "0.00"})
+        self.fields["description"].widget.attrs["placeholder"] = "What was it for?"
         self.fields["paid_by"].queryset = User.objects.filter(memberships__group=group, memberships__left_at__isnull=True, is_active=True).order_by("id")
         self.fields["participants"].queryset = self.fields["paid_by"].queryset
         self.fields["category"].queryset = Category.objects.filter(Q(group=group) | Q(group__isnull=True)).order_by("name")
@@ -27,6 +30,7 @@ class ExpenseForm(forms.Form):
                 regex=r"^[0-9]+(?:\.[0-9]{1,2})?$", required=False, max_length=22,
                 label=f"{user.username}'s exact share (INR)",
                 help_text="Exact amounts only. Leave blank for nonparticipants.",
+                widget=forms.TextInput(attrs={"inputmode": "decimal"}),
             )
 
     def clean_split_mode(self):

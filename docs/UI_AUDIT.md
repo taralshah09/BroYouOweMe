@@ -133,7 +133,7 @@ not changes silently added to Phase 7.
 
 | ID | Priority | Finding and evidence | Recommended outcome |
 |---|---|---|---|
-| F1 | High · functional | Locked plan includes role promotion/demotion, removal, leaving and zero-balance group deletion. `groups/services.py`, routes and templates implement creation/addition/invites, but none of these lifecycle operations. | Resolve the plan/implementation gap before claiming all locked features complete. Enforce group lock, zero-balance and last-admin rules in services as well as UI. |
+| F1 | Resolved · 2026-10-31 | Added role promotion/demotion, removal, leaving and zero-balance soft group deletion, with Members-page controls. | Services enforce group locks, pairwise zero balances and last-admin protection. Historical expense edits/deletion cannot recreate debts for departed members. |
 | F2 | High · recovery | HTML access/missing-resource failures return JSON; non-auth forms often redirect invalid inputs to generic `error.html` without restoring values. | Dedicated 403/404/expired-invite pages; bound forms with inline errors and preserved input. |
 | F3 | High · mobile workflow | Dashboard DOM order places all balance/history/member content before the expense form when columns collapse. | Put the primary expense action near the heading and define an intentional mobile content order. |
 | F4 | Medium · navigation | Group sections are inline links on only the dashboard; no active section indicator; expense-history/member standalone pages are weakly surfaced. | Reusable group section navigation and consistent back/breadcrumb behaviour. |
@@ -191,3 +191,126 @@ logic is in `apps/insights/services.py`, with thin response views alongside it.
 The page-structure regression test lives in
 `apps/insights/tests/test_page_audit.py`; Phase 7 business/endpoint tests are in
 `apps/insights/tests/test_insights.py`.
+
+
+## Approved prototype rollout - 2026-10-30
+
+The owner approved `docs/prototypes/index.html` and requested its design across
+all application pages, including desktop. The referenced mobile screens supply
+Space Grotesk / Plus Jakarta Sans, ink `#202b40`, cobalt `#3548d6`, canvas
+`#f5f6fa`, butter `#fff0bd`, melon accents, rounded rows, and photo-led groups.
+Fonts and the decorative group image are served locally from `static/css/assets`.
+
+The shared base now applies this system to authentication, invitations, groups,
+expenses, balances, settlement claims, categories, receipt and voice review,
+insights, reminders, activity, and validation errors. Phone navigation has a
+central Add action and an account dialog. Desktop uses a sidebar, wider content,
+and two-column group, receipt, voice, and expense-detail layouts. Intermediate
+widths collapse columns before controls become cramped; narrow phones retain
+safe-area padding and space below content for the bottom navigation.
+
+The groups dashboard shows actual net balances and pending incoming payment
+reviews. These totals reuse the existing pairwise balance service, use integer
+paise for arithmetic, and do not alter the ledger or JSON response contracts.
+The expense form is shared by manual entry, edits, and voice review, with
+checkbox participants and an exact BigInt split preview. Saving and all role,
+creator, membership and approval checks still run through existing endpoints.
+The voice draft population code now fills the checkbox inputs and preserves
+explicit participant selection when a draft could not identify participants.
+
+Validation:
+- All 119 tests pass in the rebuilt Docker image against disposable PostgreSQL,
+  including actual Tesseract and the existing 21-page SSR structure audit.
+- Local suite: 119 tests, one expected Tesseract-binary skip.
+- Two new balance-summary tests cover odd-paise allocation, pending versus
+  confirmed claims, debtor signs, cross-group netting and group-scoped reviews.
+- JavaScript syntax checks pass for app, expense and voice scripts.
+- Native Brave review: desktop dashboard and group workspace; responsive group
+  and composer at 390 and 320 CSS pixels, including the central Add link and
+  reachable Save button. A non-submitted INR 10.01 draft displays 3.34, 3.34,
+  3.33 across three members. No ledger records were created during visual QA.
+- Other pages are covered by SSR rendering and shared responsive styles;
+  this pass does not claim a fresh screenshot review of every page or physical
+  device testing. Live microphone/provider trials remain the earlier audit's work.
+
+
+## Secondary page completion and code-only verification
+
+The owner requested remaining UI fixes, then explicitly prohibited computer and
+browser control because it interrupted other work. No further computer/browser
+control was used after that instruction. This section records code-based
+verification, not a fresh screenshot or physical-device acceptance pass.
+
+Completed the approved visual system on settlement claims, overall/group
+balances, simplified settlements, the activity timeline, categories, invitation
+links/QR cards, member rows, payment reminders, expense history, and entry tools.
+Pending payments use butter review panels and explicit state badges. Insights
+now include category proportions and a twelve-month chart with readable exact
+amounts, including zero-spend months. Chart proportions use integer BigInt
+arithmetic; the underlying report/JSON contract is unchanged.
+
+Replaced navigation glyphs with the prototype's SVG paths. Both account controls
+open the profile dialog. Expense detail and group balances retain their group
+context for Add and Activity. Global Add and Activity now offer the caller's own
+groups through the existing membership-protected groups endpoint, with empty and
+network-failure states and plain-text rendering of group names. Group tabs make
+secondary pages easier to navigate. Desktop navigation stays below the sticky
+header; narrow layouts collapse cards and wrap actions with room for bottom nav.
+
+Receipt allocation now uses checkbox chips instead of multi-select boxes. Item
+assignments are hidden/disabled for whole-bill equal splits and non-item charges;
+deselected participants cannot remain assigned to receipt items. All writes
+continue through the existing review/save endpoints and service checks.
+
+Validation:
+- 120 tests pass in the final Docker image against disposable PostgreSQL,
+  including Tesseract and the page audit. Added group-context regression coverage
+  and missing-section checks for links on the current page.
+- 20 fictional, isolated page states were rendered for DOM analysis.
+- 145 jsdom checks passed for stylesheet parsing, landmarks, unique IDs, labels,
+  SVG content, both account controls, safe group-name text, group-picker failure
+  recovery, exact/subset split previews, mode switching, receipt assignments,
+  charge kinds, line removal, and finite chart proportions with empty months.
+- DOM tests run entirely in Node with mocked network responses. They do not
+  launch, inspect, or control a browser, and do not save any real ledger records.
+  The temporary test harness/dependencies live outside the repository.
+- JavaScript syntax and whitespace checks pass. Docker collects all local fonts,
+  images and scripts successfully. Visual layout/physical-device review of this
+  follow-up remains unperformed at the owner's request.
+
+
+### Fixed desktop navigation and independent content scrolling
+
+At the owner's request, the signed-in desktop shell now occupies `100dvh` with
+an 88px stationary header and a fixed sidebar. Main content and its footer share
+one independently scrollable pane. The content pane uses `min-height: 0` and
+`min-width: 0` to stay inside its grid track, reserves scrollbar space, and has
+its own anchor scroll padding. The sidebar scrolls separately only when its
+links exceed the available height. Sidebar widths remain 240px on large screens
+and 205px between 701px and 1150px. Mobile and signed-out pages retain normal
+document scrolling. No business logic changed.
+
+Code-only validation: authenticated/public shells rendered; 129 DOM/CSS cascade
+checks passed across widths 320, 390, 700, 701, 900, 1150, 1151, 1440 and 1920.
+Both page-audit tests passed in the final Docker image against disposable
+PostgreSQL. Build/asset collection and whitespace checks pass. No browser or
+computer control was used; this is not a visual or browser-layout test.
+
+### Group lifecycle completion (2026-10-31)
+
+F1 is resolved: the Members page exposes admin role changes and removals plus
+self-service departure and admin soft deletion. The service layer serializes
+these operations with ledger changes and invite joins through the group lock.
+All pairwise balances must be zero for departure/removal; deletion requires all
+group balances to be zero. Last-admin protection and append-only activity apply.
+At the owner's direction, expense edits/deletion roll back if they recreate
+balances for departed members. Rejoining restores the existing membership as a
+regular member and preserves historical splits.
+
+All 134 tests pass in the final Docker image against disposable PostgreSQL,
+including 14 new lifecycle tests, three of which exercise concurrent operations.
+The SSR page audit covers the new forms and their routes; build/asset collection,
+migration consistency and whitespace checks pass. HTTP test configuration disables
+HTTPS redirects; the initial run using production redirect defaults failed four
+existing voice tests with 301 responses. No browser/computer control or fresh
+visual review was performed.

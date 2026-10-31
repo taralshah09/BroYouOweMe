@@ -43,6 +43,15 @@ The custom user model and initial migrations are now included. Run `migrate`
 before signing up. Signup creates a session; login accepts an email or username
 (case-insensitive). Passwords use Django hashing and validation.
 
+## Group management
+
+Group admins can manage roles and remove members from **Members**. Members can
+leave after settling every pairwise balance; the last admin must promote someone
+first. Admins can delete a group only after every balance is zero. Deletion hides
+the group and its invitations while retaining its history. Expense changes that
+would recreate a balance for a departed member are blocked; invite them to rejoin
+before making those changes. These actions are also documented in `docs/API.md`.
+
 ## Docker
 
 Start Docker Desktop with Linux containers, configure `.env`, then run:

@@ -94,7 +94,7 @@ def expense_detail(request, expense_id):
         initial = dict(data, paid_by=expense.paid_by_id, participants=list(equal_shares(expense)))
         if expense.split_mode == "unequal":
             initial.update({f"share_{row['user_id']}": row["amount"] for row in data["splits"]})
-        return render(request, "expenses/detail.html", {"expense": data, "can_edit": request.user.id == expense.created_by_id, "form": ExpenseForm(group=group, initial=initial)})
+        return render(request, "expenses/detail.html", {"expense": data, "group": group, "can_edit": request.user.id == expense.created_by_id, "form": ExpenseForm(group=group, initial=initial)})
     return JsonResponse(data)
 
 

@@ -6,7 +6,7 @@ from apps.accounts.http import endpoint, payload, positive_id, wants_html
 from apps.accounts.models import User
 from apps.groups.services import require_member
 from .models import Settlement
-from .services import balances_for, create_settlement, resolve_settlement, rupee_value
+from .services import balances_for, create_settlement, overview_for, resolve_settlement, rupee_value
 
 
 @endpoint(["GET"])
@@ -24,7 +24,11 @@ def simplified(request, group_id):
 def balances(request, group_id=None):
     data = balances_for(request.user, group_id=group_id)
     if wants_html(request):
-        return render(request, "settlements/balances.html", {"balances": data, "group_id": group_id})
+        return render(request, "settlements/balances.html", {
+            "balances": data, "group_id": group_id,
+            "group": require_member(group_id, request.user) if group_id else None,
+            "overview": overview_for(request.user, group_id=group_id),
+        })
     return JsonResponse(data)
 
 
@@ -35,6 +39,7 @@ class SettlementForm(forms.Form):
 
     def __init__(self, *args, group, actor, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["amount"].widget.attrs.update({"inputmode": "decimal", "placeholder": "0.00"})
         self.fields["receiver"].queryset = User.objects.filter(memberships__group=group, memberships__left_at__isnull=True).exclude(pk=actor.pk).order_by("id")
 
 

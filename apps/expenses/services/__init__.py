@@ -9,7 +9,7 @@ from django.utils.dateparse import parse_date
 
 from apps.activity.services import record
 from apps.groups.models import Membership
-from apps.groups.services import require_member
+from apps.groups.services import require_departed_balances_zero, require_member
 from .money import allocate_equal, rupees_to_paise
 from ..models import Category, Expense, ExpenseSplit
 from .receipts import item_data, prepare_items, save_items
@@ -183,6 +183,7 @@ def update_expense(*, actor, expense_id, **changes):
     if expense._receipt_rows is not None:
         save_items(expense, expense._receipt_rows)
     apply_expense(expense)
+    require_departed_balances_zero(expense.group_id)
     record(group_id=expense.group_id, actor=actor, action="expense.updated", entity=expense, before=before, after=snapshot(expense))
     return expense
 
@@ -192,6 +193,7 @@ def delete_expense(*, actor, expense_id):
     expense = locked_expense(expense_id, actor)
     before = snapshot(expense)
     apply_expense(expense, -1)
+    require_departed_balances_zero(expense.group_id)
     expense.deleted_at = timezone.now()
     expense.save(update_fields=["deleted_at", "updated_at"])
     record(group_id=expense.group_id, actor=actor, action="expense.deleted", entity=expense, before=before, after=snapshot(expense))

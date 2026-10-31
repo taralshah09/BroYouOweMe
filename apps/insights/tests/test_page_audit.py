@@ -61,3 +61,22 @@ class PageAuditTests(TestCase):
                     url = urlsplit(link)
                     if not url.scheme and not url.netloc and url.path.startswith("/"):
                         resolve(url.path)
+                    if not url.scheme and not url.netloc and url.fragment and url.path in {"", urlsplit(path).path}:
+                        self.assertIn(url.fragment, page.ids, "Link targets a missing section")
+
+    def test_expense_and_balance_navigation_keep_the_current_group(self):
+        actor = User.objects.create_user(username="nav_owner", email="nav@example.invalid")
+        group = create_group(actor=actor, name="A very long group name for navigation")
+        expense = create_expense(actor=actor, group_id=group.id, paid_by=actor.id,
+                                 amount="12.00", description="Dinner")
+        self.client.force_login(actor)
+        for path in [f"/expenses/{expense.id}", f"/groups/{group.id}/balances"]:
+            with self.subTest(path=path):
+                response = self.client.get(path, HTTP_ACCEPT="text/html")
+                page = PageStructure()
+                page.feed(response.content.decode())
+                self.assertIn(f"/groups/{group.id}#add-expense", page.links)
+                self.assertIn(f"/groups/{group.id}/activity", page.links)
+                self.assertNotContains(response, 'data-group-open="expense"')
+        dashboard = self.client.get("/groups", HTTP_ACCEPT="text/html")
+        self.assertContains(dashboard, 'data-group-open="expense"')

@@ -27,7 +27,11 @@ def activity(request, group_id):
                         rows.append((title, state[key]))
                 if "amount_paise" in state:
                     rows.append(("Amount", f"INR {rupee_value(state['amount_paise'])}"))
-                for key, title in [("paid_by", "Paid by"), ("payer", "From"), ("receiver", "To")]:
+                if state.get("role"):
+                    rows.append(("Role", state["role"].title()))
+                if state.get("left_at"):
+                    rows.append(("Membership", "Left group"))
+                for key, title in [("paid_by", "Paid by"), ("payer", "From"), ("receiver", "To"), ("user_id", "Member")]:
                     if key in state:
                         rows.append((title, names.get(state[key], "Unknown user")))
                 for split in state.get("splits", []):

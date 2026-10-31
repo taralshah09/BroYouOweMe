@@ -1,5 +1,28 @@
 # API (through Phase 7)
 
+## Group lifecycle follow-up
+
+All lifecycle actions use authenticated, CSRF-protected POST requests. Browser
+successes redirect to Members, or Groups after leaving/deleting.
+
+| Path | Body | Permission / JSON response |
+|---|---|---|
+| `/groups/{id}/members/{user_id}/role` | `{"role": "admin"}` or `{"role": "member"}` | Admin; returns `user_id`, `role`. |
+| `/groups/{id}/members/{user_id}/remove` | `{}` | Admin; returns `user_id`, `active: false`. |
+| `/groups/{id}/leave` | `{}` | Active member; returns caller `user_id`, `active: false`. |
+| `/groups/{id}/delete` | `{}` | Admin; returns group `id`, `deleted: true`. |
+
+Success JSON status is 200. Role/removal targets must be active members of the
+specified group (404 otherwise). The last admin cannot leave or be demoted (400).
+Removal and leaving require all pairwise balances involving that member to be
+zero; group deletion requires every pairwise balance to be zero (400 otherwise).
+Net totals across different people do not satisfy this requirement. Historical
+expenses, splits, settlements and activity are retained. Deleted groups and
+their invitation links become unavailable; former members lose group access.
+Rejoining by invitation or admin addition restores the same membership as a
+regular member. Expense edits/deletion that would recreate a balance involving
+a departed member return 400 and roll back fully; invite them to rejoin first.
+
 All paths omit trailing slashes. Requests may be JSON objects or HTML form
 submissions. GET defaults to JSON; send `Accept: text/html` for SSR pages.
 `/`, `/signup`, and `/login` serve HTML on GET. Every route except signup,

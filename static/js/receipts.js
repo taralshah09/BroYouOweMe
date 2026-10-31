@@ -26,9 +26,24 @@
     kind.value = row.kind || 'item';
     const name = element('input', {className: 'line-name', placeholder: 'Name', ariaLabel: 'Line name', maxLength: 120, required: true, value: row.name || ''});
     const amount = element('input', {className: 'line-amount', placeholder: 'INR', ariaLabel: 'Line amount in INR', inputMode: 'decimal', pattern: '-?[0-9]+([.][0-9]{1,2})?', required: true, value: row.amount || ''});
-    const payees = element('select', {className: 'line-payees', multiple: true, ariaLabel: 'Item payees (blank means all participants)'});
-    for (const member of members) payees.append(element('option', {value: String(member.user_id), selected: (row.payees || []).includes(member.user_id)}, member.user__username));
-    const toggle = () => { payees.disabled = kind.value !== 'item'; if (payees.disabled) for (const option of payees.options) option.selected = false; };
+    const payees = element('div', {className: 'line-payees', role: 'group', ariaLabel: 'Item payees (blank means all participants)'});
+    for (const member of members) {
+      const label = element('label');
+      label.append(element('input', {type: 'checkbox', value: String(member.user_id), checked: (row.payees || []).includes(member.user_id)}), document.createTextNode(member.user__username));
+      payees.append(label);
+    }
+    const toggle = () => {
+      const participants = new Set([...byId('receipt-participants').querySelectorAll('input:checked')].map(input => input.value));
+      const active = kind.value === 'item' && byId('receipt-mode').value === 'itemised';
+      payees.hidden = !active;
+      for (const input of payees.querySelectorAll('input')) {
+        const included = participants.has(input.value);
+        input.disabled = !active || !included;
+        input.closest('label').hidden = !included;
+        if (kind.value !== 'item' || !included) input.checked = false;
+      }
+    };
+    box.addEventListener('allocationchange', toggle);
     kind.addEventListener('change', toggle); toggle();
     const remove = element('button', {type: 'button', className: 'secondary'}, 'Remove line');
     remove.addEventListener('click', () => {box.remove(); sum();});
@@ -46,7 +61,14 @@
     byId('receipt-sum').textContent = `Lines total: INR ${total < 0n ? '-' : ''}${magnitude / 100n}.${String(magnitude % 100n).padStart(2, '0')}. Must match the receipt total.`;
   }
   for (const row of initial.items) line(row);
-  byId('receipt-add').addEventListener('click', () => line());
+  byId('receipt-add').addEventListener('click', () => {
+    line(); byId('receipt-lines').lastElementChild.querySelector('.line-name').focus();
+  });
+  const updateAllocation = () => {
+    for (const box of byId('receipt-lines').children) box.dispatchEvent(new Event('allocationchange'));
+  };
+  byId('receipt-mode').addEventListener('change', updateAllocation);
+  byId('receipt-participants').addEventListener('change', updateAllocation);
   async function responseData(response) {
     const data = await response.json();
     if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.errors || data));
@@ -73,7 +95,7 @@
       split_mode: byId('receipt-mode').value,
       participants: [...byId('receipt-participants').querySelectorAll('input:checked')].map(node => Number(node.value)),
       items: [...byId('receipt-lines').children].map(box => ({kind: box.querySelector('.line-kind').value, name: box.querySelector('.line-name').value,
-        amount: box.querySelector('.line-amount').value, payees: [...box.querySelector('.line-payees').selectedOptions].map(node => Number(node.value))}))};
+        amount: box.querySelector('.line-amount').value, payees: [...box.querySelectorAll('.line-payees input:checked:not(:disabled)')].map(node => Number(node.value))}))};
     if (!initial.id) data.group_id = group;
     try {
       const saved = await responseData(await fetch(initial.id ? `/expenses/${initial.id}` : '/expenses', {method: initial.id ? 'PATCH' : 'POST',

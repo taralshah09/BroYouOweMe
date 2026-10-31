@@ -1,1 +1,9 @@
-{% extends "base.html" %}{% block content %}<a href="/groups/{{ group.id }}">&larr; {{ group.name }}</a><h1>Members</h1><section class="card">{% include "groups/member_rows.html" %}</section>{% endblock %}
+{% extends "base.html" %}{% block content %}
+<a class="back-link" href="/groups/{{ group.id }}">{% include "icon.html" with name="back" %}{{ group.name }}</a><div class="page-heading"><div><h1>Your people</h1><p>{{ members|length }} member{{ members|length|pluralize }}, one shared tab.</p></div><span class="page-symbol">{% include "icon.html" with name="groups" %}</span></div>
+{% include "groups/tabs.html" with section="members" %}
+<section class="card member-card">{% include "groups/member_rows.html" with manage_members=True %}</section>
+{% if is_admin %}<p class="context-note">Admins can <a href="/groups/{{ group.id }}/invites">invite friends</a> or add an exact username on the <a href="/groups/{{ group.id }}#group-people">group page</a>. Promote another admin before stepping down.</p>{% endif %}
+<section class="card membership-actions"><h2>Your membership</h2><p>You can leave once every balance with you is settled. The last admin must promote someone first.</p>
+<details><summary>Leave this group</summary><p>You will lose access to this group's expenses and activity. A new invitation lets you rejoin.</p><form method="post" action="{% url 'group-leave' group.id %}">{% csrf_token %}<button class="danger" type="submit">Confirm leaving {{ group.name }}</button></form></details>
+{% if is_admin %}<details><summary>Delete this group</summary><p>Every balance must be settled. This hides the group for everyone and retains its history.</p><form method="post" action="{% url 'group-delete' group.id %}">{% csrf_token %}<button class="danger" type="submit">Confirm deleting {{ group.name }}</button></form></details>{% endif %}
+</section>{% endblock %}

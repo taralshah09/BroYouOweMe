@@ -1,6 +1,6 @@
 # BroYouOweMe: Feature Definition and Phase Plan
 
-Status: Phases 0 through 4 validated. Phases 5 through 7 implemented; the owner reports voice logging works. Phase 7 tests and a full page-structure audit pass. Representative desktop and all 21 mobile page-state visual checks are complete; real-device interaction QA and a real receipt-photo trial remain pending. The audit also identifies unimplemented group lifecycle decisions; see `docs/UI_AUDIT.md`.
+Status: Phases 0 through 4 validated. Phases 5 through 7 implemented; the owner reports voice logging works. Phase 7 tests and a full page-structure audit pass. Representative desktop and all 21 mobile page-state visual checks are complete; real-device interaction QA and a real receipt-photo trial remain pending. The group lifecycle gap identified by the audit is implemented in the 2026-10-31 follow-up; see `docs/UI_AUDIT.md`.
 Source: `Assignment.pdf` (Decentro SDE Intern, Expense Sharing Service) plus extra requirements.
 
 ## Locked decisions
@@ -272,8 +272,8 @@ Implemented on 2026-10-30:
   page's coverage. Fixed and visually rechecked a flex-row amount-wrapping defect.
   Physical-device and full transaction-flow acceptance remain separate work.
 - Audit finding: role changes, member removal/leaving and group deletion are
-  locked decisions with no existing implementation. Track separately before
-  claiming all planned behaviour is delivered.
+  locked decisions identified as an implementation gap, now addressed by the
+  group lifecycle follow-up below.
 
 ### Phase 8: Delivery
 - README: setup, architecture, schema explanation, assumptions, design decisions, future improvements
@@ -284,3 +284,46 @@ Implemented on 2026-10-30:
 2. **Groq live trial:** continue assessing extraction quality; owner reports the live voice flow works. GPT-OSS 20B uses strict structured output; no executable tool calls are needed for drafts. Published free-tier limits are documented in README.
 3. **Keep-alive:** the pinger must be external, since Render only counts incoming requests. Neon is on a Pro plan, so cold starts are not a concern; I'll still enable Django connection health checks.
 4. **Schema:** no open questions left. See `SCHEMA.md` section 6.
+
+
+### Approved application design rollout (2026-10-30)
+
+Owner selected `docs/prototypes/index.html` and authorized applying its visual
+system throughout the existing application with desktop layouts. Implemented a
+shared responsive shell, local prototype typefaces/assets, group dashboard and
+workspace, amount-first expense entry/edit/voice forms, checkbox split previews,
+and consistent styles across all existing page surfaces. No schema changes or
+new domain workflows. Validation and visual-review coverage are recorded in
+`docs/UI_AUDIT.md` under Approved prototype rollout.
+
+
+UI follow-up: completed secondary-page layouts, SVG navigation, contextual Add /
+Activity links, account controls, report charts and receipt allocation chips.
+Validated with 120 passing Docker tests and code-only DOM/interaction checks.
+The owner prohibits computer/browser control; no further UI automation was used.
+See the secondary-page completion section in `docs/UI_AUDIT.md` for limits.
+
+### Group lifecycle follow-up (2026-10-31)
+
+Resumed implementation at audit finding F1. Added admin role changes, removal
+of members/admins, self-service departure and soft group deletion using the
+existing schema. Every operation locks the group inside its transaction and
+records an activity event. Removal/leaving requires every affected pairwise
+balance to be zero; deletion requires every group balance to be zero. The last
+admin cannot leave or be demoted. Rejoining restores the membership as a member.
+Controls live on the Members page, with explicit leave/delete confirmation.
+
+Owner resolved the historical-expense edge case on 2026-10-31: block edits or
+deletion if they would recreate a balance for someone who has left. Such changes
+roll back completely; the person can be invited to rejoin before making them.
+No migrations are needed. Browser/computer control remains prohibited.
+
+Verification: final Docker image passes all 134 tests against disposable
+PostgreSQL, including actual Tesseract, the page audit, transaction rollback,
+simultaneous admin departures, removal versus expense creation and invitation
+joining versus group deletion. Container HTTP tests use
+`DJANGO_SECURE_SSL_REDIRECT=False`; the first run without it had four existing
+voice-workflow failures from 301 redirects. The earlier local 132-test run passed
+with one expected Tesseract skip, before the final two endpoint/regression tests
+were added. Migration consistency, asset collection and whitespace checks pass.
+No shared database writes, browser/computer control or Git publication occurred.

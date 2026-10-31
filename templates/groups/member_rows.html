@@ -1,1 +1,8 @@
-<ul class="rows">{% for member in members %}<li><strong>{{ member.user.username }}</strong><span>{{ member.get_role_display }}</span></li>{% endfor %}</ul>
+<ul class="rows member-rows">{% for member in members %}<li>
+<div class="person-identity"><span class="avatar">{{ member.user.username|first|upper }}</span><strong>{{ member.user.username }}{% if member.user_id == user.id %}<small>That's you</small>{% endif %}</strong></div>
+<span class="badge {% if member.role == 'admin' %}status-admin{% endif %}">{{ member.get_role_display }}</span>
+{% if manage_members and is_admin %}<details class="member-management"><summary>Manage {{ member.user.username }}</summary>
+<form method="post" action="{% url 'member-role' group.id member.user_id %}">{% csrf_token %}
+{% if member.role == 'admin' %}<input type="hidden" name="role" value="member"><button class="secondary" type="submit">Make {{ member.user.username }} a member</button>{% else %}<input type="hidden" name="role" value="admin"><button class="secondary" type="submit">Make {{ member.user.username }} an admin</button>{% endif %}</form>
+{% if member.user_id != user.id %}<form method="post" action="{% url 'member-remove' group.id member.user_id %}">{% csrf_token %}<p>Removal requires every balance with this member to be settled.</p><button class="danger" type="submit">Remove {{ member.user.username }}</button></form>{% endif %}
+</details>{% endif %}</li>{% endfor %}</ul>

@@ -4,6 +4,13 @@
   const parse = byId('voice-parse'), text = byId('voice-transcript');
   const status = byId('voice-status'), error = byId('voice-error');
   const csrf = form.querySelector('[name=csrfmiddlewaretoken]').value;
+  const participants = [...form.querySelectorAll('input[name="participants"]')];
+  let chooseParticipants = false;
+  const validateParticipants = () => {
+    participants[0]?.setCustomValidity(chooseParticipants && !participants.some(input => input.checked)
+      ? 'Choose the people included in this expense.' : '');
+  };
+  form.addEventListener('change', validateParticipants);
   let recorder, stream, timer, busy = false;
   const release = () => {clearTimeout(timer); stream?.getTracks().forEach(track => track.stop());};
   const resetApproval = () => {form.elements.approved.checked = false;};
@@ -28,8 +35,10 @@
       form.elements.paid_by.value = data.paid_by || '';
       form.elements.split_mode.value = 'equal';
       form.elements.split_mode.dispatchEvent(new Event('change'));
-      form.elements.participants.required = data.participants.length === 0;
-      for (const option of form.elements.participants.options) option.selected = data.participants.includes(Number(option.value));
+      chooseParticipants = data.participants.length === 0;
+      for (const input of participants) input.checked = data.participants.includes(Number(input.value));
+      validateParticipants();
+      form.dispatchEvent(new Event('change'));
       form.elements.category.value = ''; form.elements.tag.value = '';
       byId('voice-warnings').replaceChildren();
       for (const warning of data.warnings) {
