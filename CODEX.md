@@ -5,7 +5,7 @@ These rules apply to every contributor and every AI agent working here. If a rul
 ## 1. Process
 1. **Ask, never assume.** If a requirement, behaviour or edge case is unclear, ask the owner before implementing it.
 2. **No implementation before approval.** Do not write application code until the owner says to start. Planning and docs are fine.
-3. **The docs are the source of truth.** `docs/PLAN.md` (features, phases, locked decisions) and `docs/SCHEMA.md` (tables, API) define what is built. Do not deviate from them. If a change is needed, propose it, get approval, then update the docs in the same change as the code.
+3. **The docs are the source of truth.** `docs/PLAN.md` (features, phases, locked decisions) and `SCHEMA.md` (tables, API) define what is built. Do not deviate from them. If a change is needed, propose it, get approval, then update the docs in the same change as the code.
 4. **Phases in order.** Build phase by phase as listed in `docs/PLAN.md`. Do not start a phase early or add features that are not in the plan.
 5. **Report honestly.** If tests fail or something was skipped, say so with the output.
 
@@ -21,7 +21,7 @@ BroYouOweMe/
 ├── CODEX.md              this file
 ├── README.md             setup, architecture, schema explanation, assumptions, decisions, future work
 ├── Assignment.pdf        the original assignment (read-only)
-├── docs/                 PLAN.md, SCHEMA.md, API docs, other documentation
+├── docs/                 project plan, UI audit and design prototypes
 ├── manage.py
 ├── config/               Django settings, root urls, wsgi/asgi
 ├── apps/                 one Django app per domain:
@@ -39,10 +39,10 @@ BroYouOweMe/
 ├── requirements.txt
 └── .env.example          variable names only, never real values
 ```
-- New files go in the folder that matches their domain. Do not create new top-level folders or files.
+- New application files go in the folder that matches their domain. Submission documents, the Postman files and `render.yaml` live in the repository root, as approved by the owner. The demo video is hosted on YouTube and linked from `DEMO.md`; branding assets live in `static/branding/`.
 - Business logic lives in each app's `services` module, not in views or templates. Views stay thin.
 - Tests live in each app's `tests/` folder.
-- Documentation lives in `docs/`, except `README.md` and this file.
+- Submission documentation lives in the repository root: `README.md`, `SETUP.md`, `API.md`, `SCHEMA.md`, `POSTMAN.md`, `DEMO.md`, `SUBMISSION.md` and `VALIDATION.md`. Planning, UI audits and prototypes remain in `docs/`.
 - The structure above is a proposal until the owner approves it. After approval, changes need approval too.
 
 ## 4. Tech constraints
@@ -53,7 +53,7 @@ BroYouOweMe/
 
 ## 5. Money and data integrity
 1. Money is integer paise. Never use floats for money.
-2. Splits always sum exactly to the expense total. Remainder paise follow the rule in `docs/SCHEMA.md`.
+2. Splits always sum exactly to the expense total. Remainder paise follow the rule in `SCHEMA.md`.
 3. Every balance-changing operation (expense create/edit/delete, settlement confirm) goes through the service layer, in one database transaction, with the group row locked.
 4. Never write to the `balances` table from anywhere else.
 5. Expenses are soft-deleted. The activity log is append-only.

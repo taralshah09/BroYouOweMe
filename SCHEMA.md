@@ -1,28 +1,13 @@
-# BroYouOweMe: Database Schema and API Design
+# Database schema explanation
 
-Status: Phases 1–5 ledger, invite and receipt schema implemented. Built from the decisions in `PLAN.md`.
-Anything marked **DECISION NEEDED** is not settled and must not be implemented until answered.
+The schema below describes the implemented Django models and PostgreSQL ledger. Migrations in each app create the tables. Voice drafts, receipt drafts, insights and exports need no draft or report tables.
 
-## Implementation boundary (through Phase 5)
-
-Implemented: users, groups, memberships, manual expenses with categories and tags,
-explicit per-user splits, maintained balances, settlements, invites, and activity. Expense split modes are `equal`, `unequal` and `itemised`. Phase 5 adds `source=ocr`,
-receipt items and item payees. Phase 6 adds stateless voice drafts and source=voice. Membership removal/role changes and group
-deletion are implemented by the group lifecycle follow-up. Receipt drafts are stateless and never persisted.
-Item payees use a surrogate bigint primary key plus UNIQUE(item_id, user_id),
-consistent with the existing Django models.
-
-Migration `expenses.0003` materializes existing equal shares from membership join
-times (not expense dates), seeds the seven defaults, and creates historical
-expense events. It does not rewrite balances. It is intentionally irreversible
-because later explicit allocations cannot be represented by the Phase 1 ledger.
-Stop old application workers before migration and start only Phase 2 workers after
-it; old code does not create the now-required split rows.
+Money is stored in integer paise. Splits and confirmed settlements form the ledger; `balances` is the maintained projection used for fast reads. The service layer checks rules that span several rows while holding the group lock.
 
 ## 1. Conventions
 
-- PostgreSQL on Neon. Django models; table names below are logical names.
-- Primary keys: auto-increment `bigint` (decided). Every view must verify group membership, because IDs are guessable.
+- PostgreSQL on Neon. Django models; domain table names below match `db_table` in the models.
+- Primary keys: auto-increment `bigint`, except the composite key on `balances`. Every view must verify group membership, because IDs are guessable.
 - Money: integer paise in `*_paise` columns (`bigint`). Never floats.
 - Timestamps: `timestamptz`, UTC.
 - Soft delete: a nullable `deleted_at` column. Default queries exclude rows where it is set.
@@ -30,21 +15,30 @@ it; old code does not create the now-required split rows.
 
 ## 2. Entity overview
 
+```mermaid
+erDiagram
+    users ||--o{ group_members : joins
+    groups ||--o{ group_members : contains
+    groups ||--o{ expenses : contains
+    users ||--o{ expenses : pays
+    categories o|--o{ expenses : labels
+    expenses ||--|{ expense_splits : allocates
+    users ||--o{ expense_splits : participates
+    expenses ||--o{ expense_items : contains
+    expense_items ||--o{ expense_item_payees : assigns
+    users ||--o{ expense_item_payees : receives
+    groups ||--o{ balances : maintains
+    groups ||--o{ settlements : records
+    groups ||--o{ invites : offers
+    groups ||--o{ activity_log : audits
 ```
-users ──< group_members >── groups ──< invites
-  │                           │
-  │                           ├──< expenses ──< expense_splits >── users
-  │                           │        └──< expense_items ──< expense_item_payees >── users
-  │                           ├──< settlements
-  │                           ├──< balances (one row per user pair per group)
-  │                           └──< activity_log
-categories (group-specific, or global defaults) ──< expenses
-```
+
+Each balance references two users. Each settlement references a payer and a receiver. Expenses also reference their creator; invites and categories reference their creator where applicable.
 
 ## 3. Tables
 
 ### users
-Custom Django user model (extends `AbstractUser` or `AbstractBaseUser`; decide at implementation).
+Custom Django user model extending `AbstractUser`. Django also maintains authentication flags, last login, permission relationships and its session tables.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -54,7 +48,7 @@ Custom Django user model (extends `AbstractUser` or `AbstractBaseUser`; decide a
 | password | varchar | Django hashed password. |
 | created_at | timestamptz | |
 
-There is no separate display name (decided): the username is the source of truth. Login works with either email or username (like Twitter). Email verification is not required for now.
+There is no separate display name: the username is the source of truth. Login works with either email or username (like Twitter). Email verification is not required for now.
 
 ### groups
 | Column | Type | Notes |
@@ -79,7 +73,7 @@ There is no separate display name (decided): the username is the source of truth
 - Index (user_id) WHERE left_at IS NULL, for "my groups".
 - Invariant, enforced in the service layer inside a transaction that locks the group row: a group always has at least one active admin. An admin cannot leave or be demoted if they are the last admin, and must promote someone first (no auto-promotion).
 - Invariant: a member can leave only if all their balances in the group are zero.
-- Admins can remove other members, including other admins (decided). Removal needs the member's balances in the group to be zero, like leaving. The last-admin invariant still holds.
+- Admins can remove other members, including other admins. Removal needs the member's balances in the group to be zero, like leaving. The last-admin invariant still holds.
 - Expense edits/deletion must not recreate nonzero pairwise balances for departed members; the complete transaction rolls back if they do (owner decision, 2026-10-31).
 
 ### categories
@@ -93,11 +87,11 @@ Categories can be group-specific (e.g. "Booze" on the Goa Trip group exists only
 | created_by | FK users null | Null for defaults. |
 | created_at | timestamptz | |
 
-- Built-in defaults, seeded by a data migration with `group_id` null: Food, Travel, Stay, Shopping, Entertainment, Utilities, Other (confirmed).
+- Built-in defaults, seeded by a data migration with `group_id` null: Food, Travel, Stay, Shopping, Entertainment, Utilities, Other.
 - UNIQUE (group_id, lower(name)) for group categories, and a separate unique index on `lower(name)` WHERE group_id IS NULL for defaults. A group cannot create a category that duplicates a default's name.
 - An expense may only use a default category or a category of its own group. Enforced in the service layer.
-- Any group member can create, rename and delete group categories (decided).
-- A category cannot be deleted if any expense is linked to it, including soft-deleted expenses. `expenses.category_id` uses a protective foreign key (`ON DELETE RESTRICT`), and the service layer returns a clear error. Unused categories are deleted for real, so there is no `deleted_at` on this table.
+- Any group member can create, rename and delete group categories.
+- A category cannot be deleted if any expense is linked to it, including soft-deleted expenses. `expenses.category_id` uses a protective foreign key (Django `on_delete=PROTECT`), and the service layer returns a clear error. Unused categories are deleted for real, so there is no `deleted_at` on this table.
 - Built-in defaults cannot be edited or deleted.
 
 ### expenses
@@ -150,14 +144,15 @@ Invariant: `SUM(price_paise)` over the expense's items equals `expenses.amount_p
 ### expense_item_payees
 | Column | Type | Notes |
 |---|---|---|
+| id | bigint PK | |
 | item_id | FK expense_items | |
 | user_id | FK users | |
 
-UNIQUE (item_id, user_id), with a bigint surrogate primary key. Only for `kind = item`. An `item` row with no payees means "split among all participants" (decided).
+UNIQUE (item_id, user_id), with a bigint surrogate primary key. Only for `kind = item`. An `item` row with no payees means "split among all participants".
 
 Itemised split computation (done at save time, written to `expense_splits`):
 1. Each `item` price is divided equally among its payees (all participants if it has none), using the rounding rule.
-2. `tax`, `service`, `tip` and `discount` totals are divided equally among every user who has at least one item share (decided), using the rounding rule.
+2. `tax`, `service`, `tip` and `discount` totals are divided equally among every user who has at least one item share, using the rounding rule.
 3. Each user's resulting amounts are summed into one `expense_splits` row.
 
 ### settlements
@@ -175,12 +170,12 @@ Itemised split computation (done at save time, written to `expense_splits`):
 
 - CHECK (payer_id <> receiver_id).
 - Flow: the payer creates a `pending` settlement. The receiver confirms or rejects it. The payer can cancel while it is pending. Balances change only on confirmation.
-- Amount rule (decided): partial allowed, no overpay. At creation, `amount + SUM(other pending settlements payer→receiver)` must not exceed what the payer currently owes the receiver in that group. The check is repeated at confirmation under the group lock, because balances can change in between.
+- Amount rule: partial allowed, no overpay. At creation, `amount + SUM(other pending settlements payer→receiver)` must not exceed what the payer currently owes the receiver in that group. The check is repeated at confirmation under the group lock, because balances can change in between.
 - Index (group_id, status).
-- Settlements are always between two users who have a real pairwise debt (decided). Debt simplification is display only and is never executed as a settlement.
+- Settlements are always between two users who have a real pairwise debt. Debt simplification is display only and is never executed as a settlement.
 
 ### balances
-Maintained pairwise net balance per group (decided: maintained table).
+Maintained pairwise net balance per group (maintained table).
 
 | Column | Type | Notes |
 |---|---|---|
@@ -193,7 +188,7 @@ Maintained pairwise net balance per group (decided: maintained table).
 - One row per unordered pair, so opposite debts net automatically.
 - Updates are one atomic statement: `INSERT ... ON CONFLICT (group_id, user_a_id, user_b_id) DO UPDATE SET net_paise = balances.net_paise + EXCLUDED.net_paise`.
 - Reading: expand each non-zero row into "debtor owes creditor amount" for the API.
-- Group totals and the overall `GET /balances` view are sums over these rows.
+- Group reads expand all its pairs. Overall `GET /balances` sums only pairs involving the caller across their active groups.
 
 ### invites
 | Column | Type | Notes |
@@ -203,7 +198,7 @@ Maintained pairwise net balance per group (decided: maintained table).
 | token | varchar(64) | Cryptographically random, URL-safe, unique. The only unguessable identifier in the system. |
 | created_by | FK users | Must be an admin. |
 | created_at | timestamptz | |
-| expires_at | timestamptz | `created_at + 7 days` (decided). |
+| expires_at | timestamptz | `created_at + 7 days`. |
 | revoked_at | timestamptz null | Admins can revoke. |
 
 Multi-use: a link works until it expires or is revoked. Each join is recorded in `activity_log`.
@@ -250,7 +245,7 @@ All endpoints require login except signup, login, the health check and invite pr
 ### Auth and users
 | Method | Path | Notes |
 |---|---|---|
-| POST | /signup | Email-based account creation (with a chosen username). Also serves as the assignment's "create user". |
+| POST | /signup | Account creation with email, username and password. Also serves as the assignment's "create user". |
 | POST | /login, /logout | Session auth. Login with email or username plus password. |
 | GET/POST | /users | Removed at owner request; 404. No platform directory. |
 
@@ -259,11 +254,12 @@ All endpoints require login except signup, login, the health check and invite pr
 |---|---|---|
 | POST | /groups | Creator becomes the first admin. |
 | GET | /groups | The caller's groups. |
-| DELETE | /groups/{id} | Admin only, only if all balances are zero. |
+| POST | /groups/{id}/delete | Admin only, only if all balances are zero. |
 | POST | /groups/{id}/members | Admin adds an existing user (`user_id`), as in the assignment. |
 | GET | /groups/{id}/members | |
-| PATCH | /groups/{id}/members/{user_id} | Admin changes a role. |
-| DELETE | /groups/{id}/members/{user_id} | A member leaves (self), or an admin removes someone. |
+| POST | /groups/{id}/members/{user_id}/role | Admin changes a role. |
+| POST | /groups/{id}/members/{user_id}/remove | Admin removes a member. |
+| POST | /groups/{id}/leave | Caller leaves the group. |
 
 ### Categories
 | Method | Path | Notes |
@@ -306,7 +302,7 @@ All endpoints require login except signup, login, the health check and invite pr
 | POST | /groups/{id}/voice/approve | Reviewed form; requires approved=yes and saves source=voice through the expense service. |
 | POST | /groups/{id}/voice/parse | Audio upload, Sarvam transcription, Groq parsing, returns a draft expense. Processed in memory and not stored. |
 
-Drafts are stateless: they are returned to the browser and shown on the review screen. "Approve" submits a normal `POST /expenses` with `source = ocr` or `voice`. No draft table is needed.
+Drafts are stateless: they are returned to the browser and shown on the review screen. Receipt approval submits `POST /expenses` with `source=ocr`. Voice review uses `POST /groups/{id}/voice/approve`; reviewed JSON clients may use `POST /expenses` with `source=voice`. No draft table is needed.
 
 ### Insights, activity and operations
 | Method | Path | Notes |
@@ -317,9 +313,7 @@ Drafts are stateless: they are returned to the browser and shown on the review s
 | GET | /groups/{id}/nudges | Shareable text for direct debts owed to the caller, excluding pending claims. No delivery. |
 | GET | /health | For the external pinger; runs `SELECT 1`. |
 
-## 6. Decisions
-
-### Settled
+## 6. Product rules
 - Debt simplification is display only (settlements stay between real pairwise debts).
 - Admins can remove other members.
 - API money format is rupees with up to two decimals, converted to paise internally.
@@ -332,9 +326,18 @@ Drafts are stateless: they are returned to the browser and shown on the review s
 - The free-text `tag` column on expenses stays.
 - Admins can remove other members, including admins. Removal requires zero balances.
 
-### Still open
-- None.
-
-Phase 4 implements the invites table and endpoints described above. Admins can
+Admins can
 list links at `GET /groups/{id}/invites` and retrieve SVG QR at
 `GET /groups/{id}/invites/{invite_id}/qr`. Revocation also accepts POST for HTML forms.
+
+## Storage and enforcement notes
+
+`expense_splits`, `expense_items` and `expense_item_payees` each have their own bigint `id`. Split rows are unique per expense and user; item payees are unique per item and user; item positions are unique per expense. Discounts have negative prices, while other item kinds require positive prices. These checks are database constraints.
+
+The database checks positive expense, split and settlement amounts, valid source and mode values, distinct settlement parties, valid membership roles and ordered balance pairs. Services enforce split totals, active membership, category scope, receipt allocation, the last-admin rule and payment reservations. Foreign keys protect the ledger from accidental deletion. Item payees use Django cascade behavior when their item is replaced.
+
+`activity_log.before` and `after` are JSONB snapshots. Its append-only behavior is an application rule; it is not a PostgreSQL trigger or a database role restriction. Group and expense soft deletion retain financial history. Membership departure sets `left_at`; rejoining reuses the row.
+
+Django also creates migration, content type, permission and session tables. Sessions hold authentication state and any pending accepted invite. No table stores uploaded images, audio, raw transcripts or AI drafts.
+
+See [API.md](API.md) for the request contract and [POSTMAN.md](POSTMAN.md) for executable examples.

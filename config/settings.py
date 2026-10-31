@@ -29,6 +29,13 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]")
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
+if os.environ.get("RENDER") == "true":
+    # Render terminates TLS before forwarding requests to Gunicorn.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    render_hostname = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "").strip()
+    if render_hostname:
+        ALLOWED_HOSTS.append(render_hostname)
+        CSRF_TRUSTED_ORIGINS.append(f"https://{render_hostname}")
 
 INSTALLED_APPS = [
     "django.contrib.auth",

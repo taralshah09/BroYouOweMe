@@ -20,6 +20,7 @@ Source: `Assignment.pdf` (Decentro SDE Intern, Expense Sharing Service) plus ext
 | Groups | Multiple admins per group. An admin can promote other members to admin, change roles, and remove other members, including other admins (removal needs zero balances). The last admin cannot leave until they make another member admin (no auto-promotion). |
 | Settlements | Confirmation required: payer claims, receiver confirms (or rejects). Balance changes only on confirmation. |
 | Render plan | Free tier, kept awake by an external pinger hitting a health URL. Deployed via Docker (Tesseract binary). Uploads processed in memory, not stored. |
+| Submission demo | Render Blueprint with Neon, migrations and repeatable reviewer seed at startup. Three login-enabled reviewer accounts reproduce the video's INR 1,200 dinner; shared edits persist across restarts. Public demo password comes from `DEMO_PASSWORD`; the existing non-login dummy seed remains available. |
 | Invites | Links expire and are multi-use. Only admins can create and revoke them. |
 | Expense permissions | Only the creator of an expense can edit or delete it. Admins cannot. |
 | Neon | Pro plan |
@@ -114,7 +115,7 @@ Completed and verified on 2026-10-30:
 - Equal-split manual expenses, deterministic rounding, maintained pairwise
   balances, group locking, atomic PostgreSQL upserts, and integrity command.
 - SSR pages and JSON endpoints for accounts, groups, members, expenses, and
-  group/overall balances. API usage is documented in `docs/API.md`.
+  group/overall balances. API usage is documented in `API.md`.
 - The exact Mohit/Rahul/Ankit Dinner 1200 balance JSON passes end to end.
 - 38 tests pass locally and in Docker, including partial-write rollback,
   concurrent creation, overflow validation, CSRF, and historical membership.

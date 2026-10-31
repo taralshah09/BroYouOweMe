@@ -1,6 +1,10 @@
-# API (through Phase 7)
+# API documentation
 
-## Group lifecycle follow-up
+Base URL for local development: `http://127.0.0.1:8000`. Paths have no trailing slash.
+
+Import the [Postman collection](POSTMAN.md) for runnable examples and automatic CSRF handling. See [SETUP.md](SETUP.md) for configuration.
+
+## Group lifecycle
 
 All lifecycle actions use authenticated, CSRF-protected POST requests. Browser
 successes redirect to Members, or Groups after leaving/deleting.
@@ -62,7 +66,7 @@ user object with 200. `POST /logout` ends the session; GET is not allowed.
 
 Group objects contain `id`, `name`, `created_by`. The creator becomes the first
 admin. Adding a duplicate member returns 400. Only existing active registered
-users can be added. No removal, deletion, or role-changing routes exist yet.
+users can be added. Role changes, member removal, leaving and group deletion use the lifecycle routes listed above.
 
 ## Expenses
 
@@ -77,8 +81,7 @@ All current members participate by default. Optional `participants` is a nonempt
 list of unique active member IDs for an equal subset. Every share must be positive,
 so the amount must cover at least one paisa per participant. The payer and creator must be
 active members. Description is required, up to 200 characters. Optional fields include `category` (category ID or null), `tag` (up to 40 characters),
-`split_mode` (`equal` or `unequal`), and `splits` (below). Unsupported fields,
-including receipt items and AI source, return 400.
+`split_mode` (`equal` or `unequal`), and `splits` (below). Unsupported fields return 400. Receipt and voice payloads use the additional fields described in their sections below. Manual expenses cannot attach receipt items.
 
 Returns 201 with `id`, `group_id`, `created_by`, `description`, `amount`,
 `paid_by` (username), `paid_by_id`, and `expense_date`.
@@ -191,7 +194,7 @@ times. `python manage.py check_balances` verifies stored share totals and recomp
 all active expense debts minus confirmed settlements under group locks.
 
 
-## Suggested settlements (Phase 3)
+## Suggested settlements
 
 `GET /groups/{id}/simplified` requires active membership. JSON returns
 `{"display_only":true,"transfers":[{"payer":2,"payer_username":"Rahul","receiver":1,"receiver_username":"Mohit","amount":400}]}`.
@@ -200,7 +203,7 @@ write balances, reserve pending claims, or create settlements. Suggestions may
 connect people without a direct debt; actual claims still require pairwise debt.
 Accept: text/html renders the suggestions screen.
 
-## Invites (Phase 4)
+## Invites
 
 - `GET /groups/{id}/invites`: admin-only list, including revoked/expired history.
 - `POST /groups/{id}/invites`: admin-only creation, empty body; 201 with `id`,
@@ -226,7 +229,7 @@ Known `user_id` values remain supported by the API. Neither UI enumerates platfo
 accounts; group member lists require active membership.
 
 
-## Phase 5 receipt entry
+## Receipt entry
 
 `GET /groups/{id}/receipts` opens the upload and correction screen. Creator edits
 use `?expense={expense_id}`. `POST /groups/{id}/receipts/parse` accepts multipart
@@ -252,12 +255,12 @@ items, split replacement, balances and audit snapshots commit atomically. Existi
 creator-only edit/delete and membership checks apply. Soft deletion retains items.
 
 
-## Phase 6 voice entry
+## Voice entry
 
 - `GET /groups/{id}/voice`: member-only recording, transcript and editable approval screen.
 - `POST /groups/{id}/voice/parse`: multipart `audio` (mono 16 kHz, 16-bit WAV,
   max 2 MiB / 30 seconds) or JSON `{"transcript":"I paid 600 for dinner"}`
-  (1?4000 characters). Returns `{transcript, draft}` where draft contains `amount`
+  (1 to 4,000 characters). Returns `{transcript, draft}` where draft contains `amount`
   (exact rupee string or null), `description`, `paid_by` (member ID or null),
   `participants` (member IDs), `warnings`, `source: "voice"`, `split_mode: "equal"`.
   Ambiguous members are unselected. No expense or balance is written. Errors are
@@ -274,7 +277,7 @@ Clients may also submit reviewed JSON to normal `POST /expenses` with
 rules; voice does not accept receipt items. Creator-only edit/delete, audit
 snapshots and atomic ledger updates apply to voice expenses too. Never submit
 provider output automatically; show it for explicit review first.
-## Phase 7: Insights, export and reminders
+## Insights, export and reminders
 
 All three endpoints require a session and active group membership. Reads never
 change the ledger. Responses use `Cache-Control: no-store`. Use `Accept: text/html`
@@ -308,3 +311,32 @@ Nudges cover only direct debts owed to the caller. Amounts reserved by pending
 claims are excluded and reported separately; fully reserved debts are omitted.
 Amounts come from current pairwise balances, not simplified suggestions. This
 endpoint generates text only and sends no messages or notifications.
+
+## Request and error examples
+
+Send `Accept: application/json` for API requests and `Content-Type: application/json` for JSON bodies. Preserve the `sessionid` and `csrftoken` cookies. No bearer token or API key is used for application authentication. Multipart requests must let the client generate its boundary.
+
+```http
+POST /groups
+Accept: application/json
+Content-Type: application/json
+Cookie: sessionid=<session>; csrftoken=<current-token>
+X-CSRFToken: <current-token>
+
+{"name":"Goa Trip"}
+```
+
+Success: `201` with `{"id":1,"name":"Goa Trip","created_by":1}`.
+
+| Status | Meaning | Example |
+|---|---|---|
+| 400 | Validation failed | `{"errors":["Provide a JSON object."]}` |
+| 401 | Session missing | `{"error":"Login required."}` |
+| 403 | Permission denied | `{"error":"..."}` |
+| 404 | Resource unavailable | `{"error":"Not found."}` |
+| 405 | Unsupported method | `{"error":"Method not allowed."}` with `Allow` header |
+| 503 | Database or provider unavailable | Health uses `{"status":"unavailable"}` |
+
+Field validation can return an object of field names and error lists instead of a flat list. Django's CSRF middleware can return an HTML 403 before the view runs, even with JSON Accept headers. Missing routes also use Django's standard 404. An unsupported unsafe method without a valid CSRF token may be rejected by middleware before reaching the method check.
+
+Group membership is required on group resources. Admin rights apply to membership management, group deletion and invitations. Expense edits and deletion require the creator. Payment confirmation and rejection require the receiver; cancellation requires the payer.

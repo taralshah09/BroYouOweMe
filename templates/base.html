@@ -1,6 +1,10 @@
 {% load static %}{% firstof group.id expense.group_id group_id as active_group %}<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#3548d6"><title>{% block title %}BroYouOweMe{% endblock %}</title>
+<link rel="icon" href="{% static 'branding/favicon.ico' %}" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="{% static 'branding/favicon-32.png' %}">
+<link rel="icon" type="image/png" sizes="192x192" href="{% static 'branding/icon-192.png' %}">
+<link rel="apple-touch-icon" sizes="180x180" href="{% static 'branding/apple-touch-icon.png' %}">
 <link rel="stylesheet" href="{% static 'css/main.css' %}"><script src="{% static 'js/app.js' %}" defer></script></head>
 <body class="{% if user.is_authenticated %}signed-in{% else %}public{% endif %}">
 <a class="skip" href="#main">Skip to content</a>

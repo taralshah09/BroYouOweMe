@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: broyouoweme
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    dockerCommand: >-
+      sh -c 'python manage.py migrate --noinput &&
+      python manage.py seed_demo --reviewer &&
+      exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}
+      --workers 2 --timeout 120 --access-logfile - --error-logfile -'
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: DEMO_PASSWORD
+        sync: false
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_SECURE_SSL_REDIRECT
+        value: "true"
+      - key: DB_CONN_MAX_AGE
+        value: "60"
